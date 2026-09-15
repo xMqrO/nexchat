@@ -54,13 +54,13 @@ const cookieToken = (req) => req.headers.cookie?.match(/(?:^|;)\s*nexchat_sessio
 const currentUser = (req) => { const o = verify(cookieToken(req)); return o ? o.uid : null; };
 
 async function onlineIds() {
-  const p = await storage.readJson(files.presence).catch(() => ({}));
+  const p = await storage.readJson(files.presence, true).catch(() => ({}));
   const now = Date.now();
-  return new Set(Object.entries(p).filter(([, t]) => now - t < 150000).map(([uid]) => uid));
+  return new Set(Object.entries(p).filter(([, t]) => now - t < 60000).map(([uid]) => uid));
 }
 async function markOnline(uid) {
-  const p = await storage.readJson(files.presence).catch(() => ({}));
-  if (nowAgo(p[uid]) < 15000) return;
+  const p = await storage.readJson(files.presence, true).catch(() => ({}));
+  if (nowAgo(p[uid]) < 10000) return;
   p[uid] = Date.now();
   await storage.writeJson(files.presence, p);
 }
@@ -131,7 +131,7 @@ app.post('/api/login', async (req, res) => {
 });
 app.post('/api/logout', requireUser, async (req, res) => {
   setCookie(res, '', false);
-  const p = await storage.readJson(files.presence).catch(() => ({}));
+  const p = await storage.readJson(files.presence, true).catch(() => ({}));
   if (p[req.uid]) { p[req.uid] = 0; await storage.writeJson(files.presence, p); }
   res.json({ ok: true });
 });

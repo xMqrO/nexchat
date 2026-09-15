@@ -129,7 +129,7 @@
 
   function createRealtime() {
     api('/api/me').then((d) => { state.ownId = d.user ? d.user.id : null; }).catch(() => {});
-    setInterval(() => api('/api/presence', { method: 'POST', body: {} }).catch(() => {}), 60000);
+    setInterval(() => api('/api/presence', { method: 'POST', body: {} }).catch(() => {}), 25000);
     setInterval(pollTyping, 700);
     loop();
     return { on, emit };
