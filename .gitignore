@@ -3,3 +3,6 @@ storage/
 data/
 uploads/
 *.log
+# accidental output files
+0
+NUL
