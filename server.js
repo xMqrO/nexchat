@@ -101,6 +101,8 @@ function requireUser(req, res, next) {
   req.uid = uid;
   next();
 }
+app.get('/api/health', (req, res) => { res.json({ bypass: AUTH_BYPASS, bypassRaw: String(process.env.AUTH_BYPASS || '').split('').map((c) => c.charCodeAt(0)) }); });
+
 const setCookie = (res, token, maxAge = true) => { const base = `nexchat_session=${token}; HttpOnly; SameSite=Lax; Path=/`; res.setHeader('Set-Cookie', maxAge ? `${base}; Max-Age=${30 * 24 * 60 * 60}` : `${base}; Max-Age=0`); };
 
 app.post('/api/register', async (req, res) => {
