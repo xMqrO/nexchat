@@ -204,8 +204,7 @@ app.post('/api/typing', requireUser, async (req, res) => {
   else if (typing[c.id]?.userId === req.uid) delete typing[c.id];
   else return res.json({ ok: true });
   await storage.writeJson(files.typing, typing);
-  const readback = req.query.debug ? await storage.readJson(files.typing, true).catch(() => null) : null;
-  res.json({ ok: true, debug: { hasConv: !!c, members: c.members, typingObj: typing, writeValue: typing[c.id], readback } });
+  res.json({ ok: true });
 });
 app.get('/api/typing/:conversationId', requireUser, async (req, res) => {
   const c = conversations.find((x) => x.id === clean(req.params.conversationId, 40) && x.members.includes(req.uid));

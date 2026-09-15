@@ -163,20 +163,23 @@ function cacheGet(p) {
   return null;
 }
 
+const ARRAY_FILES = ['users.json', 'conversations.json', 'messages.json'];
+const normalizeShape = (p, v) => ARRAY_FILES.includes(p) ? (Array.isArray(v) ? v : []) : (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+
 async function fetchRaw(p) {
   if (mode === 'turso') {
     const val = await tursoGet(p);
-    if (val == null) return [];
-    try { return JSON.parse(val); } catch { return []; }
+    if (val == null) return normalizeShape(p, null);
+    try { return normalizeShape(p, JSON.parse(val)); } catch { return normalizeShape(p, null); }
   }
   if (mode === 'r2') {
     const buf = await r2ReadText(p);
-    if (!buf) return [];
-    try { return JSON.parse(buf.toString('utf8')); } catch { return []; }
+    if (!buf) return normalizeShape(p, null);
+    try { return normalizeShape(p, JSON.parse(buf.toString('utf8'))); } catch { return normalizeShape(p, null); }
   }
   const j = await apiGet(p);
-  if (!j) return [];
-  try { return JSON.parse(fromB64(j.content)); } catch { return []; }
+  if (!j) return normalizeShape(p, null);
+  try { return normalizeShape(p, JSON.parse(fromB64(j.content))); } catch { return normalizeShape(p, null); }
 }
 
 async function readJson(name, fresh) {
