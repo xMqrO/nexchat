@@ -59,7 +59,7 @@ const PHYSICAL = {
   'users.json': 'users.json', 'conversations.json': 'conversations.json', 'messages.json': 'messages.json',
   'presence.json': 'presence.json', 'typing.json': 'typing.json'
 };
-const TTL = { 'users.json': 9000, 'conversations.json': 9000, 'messages.json': 9000, 'presence.json': 15000, 'typing.json': 15000 };
+const TTL = { 'users.json': 9000, 'conversations.json': 9000, 'messages.json': 9000, 'presence.json': 15000, 'typing.json': 1500 };
 
 let cache = new Map();
 let inflight = new Map();
