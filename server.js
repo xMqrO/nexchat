@@ -157,8 +157,8 @@ app.post('/api/conversations', requireUser, async (req, res) => {
 app.get('/api/messages/:conversationId', requireUser, async (req, res) => {
   const c = conversations.find((x) => x.id === req.params.conversationId && x.members.includes(req.uid));
   if (!c) return res.status(404).json({ error: 'Conversation not found.' });
-  const since = clean(req.query.since, 40);
-  const list = (await storage.readJson(files.messages)).filter((m) => m.conversationId === c.id).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)).filter((m) => !since || m.id > since);
+  const since = clean(req.query.laterThan, 60);
+  const list = (await storage.readJson(files.messages)).filter((m) => m.conversationId === c.id).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)).filter((m) => !since || (m.createdAt && m.createdAt > since));
   res.json({ messages: list.map((m) => ({ ...m, sender: safeUser(findUser(m.senderId) || { id: m.senderId, username: 'Unknown', color: '#8b7cf6' }) })), members: c.members });
 });
 app.post('/api/messages', requireUser, async (req, res) => {

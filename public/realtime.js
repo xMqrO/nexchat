@@ -5,10 +5,11 @@
     ownId: null,
     activeConv: null,
     seenMsgs: new Set(),
-    lastMsgIds: new Map(),
+    lastSeenTs: new Map(),
     statuses: new Map(),
     seenOnline: new Map(),
-    seenTyping: new Map()
+    seenTyping: new Map(),
+    iter: 0
   };
 
   function on(ev, cb) { (listeners[ev] = listeners[ev] || []).push(cb); return this; }
@@ -28,11 +29,16 @@
   }
 
   function emit(ev, data) {
-    if (ev === 'join') { state.activeConv = data; state.openActivities = true; }
+    if (ev === 'join') { state.activeConv = data; }
     else if (ev === 'message') {
       if (!state.activeConv && data && data.conversationId) state.activeConv = data.conversationId;
       api('/api/messages', { method: 'POST', body: data })
-        .then((r) => { state.seenMsgs.add(r.message.id); state.lastMsgIds.set(r.message.conversationId, r.message.id); dispatch('message', r.message); })
+        .then((r) => {
+          const m = r.message;
+          state.seenMsgs.add(m.id);
+          if (m.createdAt) state.lastSeenTs.set(m.conversationId, m.createdAt);
+          dispatch('message', m);
+        })
         .catch(() => { /* surfaced via polls */ });
     } else if (ev === 'typing') { api('/api/typing', { method: 'POST', body: data }).catch(() => {}); }
     else if (ev === 'read') { api('/api/messages/' + data.conversationId + '/read', { method: 'POST', body: {} }).catch(() => {}); }
@@ -41,24 +47,31 @@
   async function pollMessages() {
     const conv = state.activeConv;
     if (!conv) return;
-    const since = state.lastMsgIds.get(conv);
-    const d = await api('/api/messages/' + conv + (since ? '?since=' + encodeURIComponent(since) : ''));
+    state.iter = (state.iter + 1) % 12;
+    const isFull = state.iter === 0;
+    const knownTs = state.lastSeenTs.has(conv) ? state.lastSeenTs.get(conv) : null;
+    const since = isFull ? null : knownTs;
+    const q = since ? '?laterThan=' + encodeURIComponent(since) : '';
+    const d = await api('/api/messages/' + conv + q);
     const otherId = (d.members && state.ownId) ? (d.members[0] === state.ownId ? d.members[1] : d.members[0]) : null;
+    let lastCreated = null;
     for (const m of d.messages) {
-      if (!state.seenMsgs.has(m.id)) {
-        state.seenMsgs.add(m.id);
-        state.lastMsgIds.set(m.conversationId, m.id);
-        dispatch('message', m);
-      } else if (m.senderId === state.ownId && otherId) {
+      const isNew = !state.seenMsgs.has(m.id);
+      state.seenMsgs.add(m.id);
+      if (m.createdAt) { lastCreated = m.createdAt; }
+      if (isNew && (since || isFull)) dispatch('message', m);
+      if (m.senderId === state.ownId && otherId) {
         const prev = state.statuses.get(m.id);
         if (prev && prev !== m.status) {
           if (m.status === 'read') dispatch('read', { conversationId: m.conversationId, userId: otherId });
           else if (m.status === 'delivered') dispatch('delivered', { conversationId: m.conversationId, messageId: m.id });
         }
         state.statuses.set(m.id, m.status);
-      } else {
-        state.statuses.set(m.id, m.status);
       }
+    }
+    if (lastCreated) {
+      const prevTs = state.lastSeenTs.get(conv);
+      if (!prevTs || prevTs < lastCreated) state.lastSeenTs.set(conv, lastCreated);
     }
   }
 
@@ -82,7 +95,6 @@
       if (!state.activeConv || c.id !== state.activeConv) {
         if (c.lastMessage && !state.seenMsgs.has(c.lastMessage.id)) {
           state.seenMsgs.add(c.lastMessage.id);
-          state.lastMsgIds.set(c.id, c.lastMessage.id);
           dispatch('message', { ...c.lastMessage, conversationId: c.id });
         }
       }
