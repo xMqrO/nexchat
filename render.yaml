@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: nexchat
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: GITHUB_STORAGE_REPO
+        value: yourname/nexchat-data
+      - key: GITHUB_TOKEN
+        sync: false
