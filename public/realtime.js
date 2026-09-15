@@ -86,11 +86,11 @@
       const t = c.typing;
       let key = null;
       if (t && t.user) key = t.user.id + '@' + (t.user.isTyping ? '1' : '0');
-      if (state.seenTyping.has(c.id) && state.seenTyping.get(c.id) !== key && c.id !== state.activeConv) {
+      const prev = state.seenTyping.get(c.id);
+      state.seenTyping.set(c.id, key);
+      if (prev !== key && c.id === state.activeConv) {
         dispatch('typing', { user: t ? t.user : { id: other.id }, isTyping: !!(t && t.user) });
       }
-      state.seenTyping.set(c.id, key);
-      if (key && state.activeConv === c.id) dispatch('typing', { user: t.user, isTyping: true });
 
       if (!state.activeConv || c.id !== state.activeConv) {
         if (c.lastMessage && !state.seenMsgs.has(c.lastMessage.id)) {
