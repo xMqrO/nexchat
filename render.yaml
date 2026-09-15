@@ -8,6 +8,6 @@ services:
     startCommand: node server.js
     envVars:
       - key: GITHUB_STORAGE_REPO
-        value: yourname/nexchat-data
+        value: xMqrO/nexchat-data
       - key: GITHUB_TOKEN
         sync: false
