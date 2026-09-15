@@ -156,7 +156,7 @@ app.get('/api/conversations', requireUser, async (req, res) => {
 });
 app.post('/api/conversations', requireUser, async (req, res) => {
   const other = findUser(clean(req.body.memberId, 30));
-  if (!other || other.id === req.uid) return res.status(404).json({ error: other ? 'You cannot message yourself.' : 'No user found with this ID.' });
+  if (!other || other.id === req.uid) return res.status(404).json({ error: other ? 'You cannot message yourself.' : 'No user found.' });
   let c = conversationFor(req.uid, other.id);
   if (!c) { c = { id: id('conv'), members: [req.uid, other.id], createdAt: new Date().toISOString(), theme: { background: '', color: '#8b7cf6' } }; conversations.push(c); await storage.writeJson(files.conversations, conversations); }
   res.json({ conversation: await hydrateConversation(c, req.uid, await onlineIds(), await storage.readJson(files.typing).catch(() => ({}))) });
