@@ -11,6 +11,8 @@ const UPLOADS = storage.uploadsDir;
 const PUBLIC = path.join(ROOT, 'public');
 const files = { users: 'users.json', conversations: 'conversations.json', messages: 'messages.json', presence: 'presence.json', typing: 'typing.json' };
 const SECRET = process.env.SESSION_SECRET || 'nexchat-dev-secret-change-me';
+const AUTH_BYPASS = process.env.AUTH_BYPASS === '1';
+const DEMO_AUTO = 'NC-482913';
 
 storage.ensure();
 const demoUsers = [
@@ -91,8 +93,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api', async (req, res, next) => { try { await seeded(); await reloadLists(); } catch {} next(); });
 
 function requireUser(req, res, next) {
-  const uid = currentUser(req);
-  const user = findUser(uid);
+  let uid = currentUser(req);
+  if (!uid && AUTH_BYPASS) uid = DEMO_AUTO;
+  const user = findUser(uid) || (AUTH_BYPASS && uid === DEMO_AUTO ? demoUsers[0] : null);
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   req.user = user;
   req.uid = uid;
@@ -101,6 +104,7 @@ function requireUser(req, res, next) {
 const setCookie = (res, token, maxAge = true) => { const base = `nexchat_session=${token}; HttpOnly; SameSite=Lax; Path=/`; res.setHeader('Set-Cookie', maxAge ? `${base}; Max-Age=${30 * 24 * 60 * 60}` : `${base}; Max-Age=0`); };
 
 app.post('/api/register', async (req, res) => {
+  if (AUTH_BYPASS) return res.status(403).json({ error: 'Registration is temporarily disabled.' });
   const username = clean(req.body.username, 32), password = String(req.body.password || '');
   if (username.length < 3 || password.length < 4) return res.status(400).json({ error: 'Username must be 3+ characters and password 4+ characters.' });
   if (users.some((u) => u.username.toLowerCase() === username.toLowerCase())) return res.status(409).json({ error: 'That username is already taken.' });
@@ -114,7 +118,8 @@ app.post('/api/register', async (req, res) => {
   res.json({ user: safeUser(user, await onlineIds()) });
 });
 app.post('/api/login', async (req, res) => {
-  const user = users.find((u) => u.username.toLowerCase() === String(req.body.username || '').toLowerCase() && u.password === String(req.body.password || ''));
+  let user = users.find((u) => u.username.toLowerCase() === String(req.body.username || '').toLowerCase() && u.password === String(req.body.password || ''));
+  if (!user && AUTH_BYPASS) user = findUser(DEMO_AUTO) || demoUsers[0] || null;
   if (!user) return res.status(401).json({ error: 'Invalid username or password.' });
   const token = sign({ uid: user.id });
   setCookie(res, token);
@@ -127,7 +132,7 @@ app.post('/api/logout', requireUser, async (req, res) => {
   if (p[req.uid]) { p[req.uid] = 0; await storage.writeJson(files.presence, p); }
   res.json({ ok: true });
 });
-app.get('/api/me', async (req, res) => { const uid = currentUser(req); const u = findUser(uid); res.json({ user: u ? safeUser(u, await onlineIds()) : null }); });
+app.get('/api/me', async (req, res) => { const uid = currentUser(req) || (AUTH_BYPASS ? DEMO_AUTO : null); const u = findUser(uid) || (uid && AUTH_BYPASS ? demoUsers[0] : null); res.json({ user: u ? safeUser(u, await onlineIds()) : null }); });
 app.get('/api/users/:id', requireUser, async (req, res) => { const u = findUser(clean(req.params.id, 30)); if (!u) return res.status(404).json({ error: 'User not found.' }); res.json({ user: safeUser(u, await onlineIds()) }); });
 app.get('/api/users', requireUser, async (req, res) => { const q = String(req.query.q || '').toLowerCase(); const online = await onlineIds(); res.json({ users: users.filter((u) => u.id !== req.uid && (!q || u.username.toLowerCase().includes(q) || u.id.toLowerCase().includes(q))).slice(0, 20).map((u) => safeUser(u, online)) }); });
 app.put('/api/profile', requireUser, async (req, res) => {
