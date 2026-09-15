@@ -9,6 +9,7 @@
     statuses: new Map(),
     seenOnline: new Map(),
     seenTyping: new Map(),
+    lastOtherOf: new Map(),
     iter: 0
   };
 
@@ -79,6 +80,7 @@
     const d = await api('/api/conversations');
     for (const c of d.conversations) {
       const other = c.other;
+      state.lastOtherOf.set(c.id, other.id);
       const online = !!other.online;
       if (state.seenOnline.has(other.id) && state.seenOnline.get(other.id) !== online) dispatch('presence', { userId: other.id, online });
       state.seenOnline.set(other.id, online);
@@ -101,6 +103,19 @@
     }
   }
 
+  async function pollTyping() {
+    const conv = state.activeConv;
+    if (!conv) return;
+    const d = await api('/api/typing/' + conv, { cache: 'no-store' }).catch(() => null);
+    if (!d) return;
+    const tk = d.isTyping ? (d.user ? d.user.id + '@1' : '?@1') : null;
+    const prev = state.seenTyping.get(conv);
+    if (prev !== tk) {
+      state.seenTyping.set(conv, tk);
+      dispatch('typing', { user: d.user || { id: state.lastOtherOf.get(conv) || '' }, isTyping: d.isTyping });
+    }
+  }
+
   let running = false;
   async function loop() {
     if (running) return;
@@ -115,6 +130,7 @@
   function createRealtime() {
     api('/api/me').then((d) => { state.ownId = d.user ? d.user.id : null; }).catch(() => {});
     setInterval(() => api('/api/presence', { method: 'POST', body: {} }).catch(() => {}), 60000);
+    setInterval(pollTyping, 700);
     loop();
     return { on, emit };
   }

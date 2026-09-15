@@ -206,6 +206,18 @@ app.post('/api/typing', requireUser, async (req, res) => {
   await storage.writeJson(files.typing, typing);
   res.json({ ok: true });
 });
+app.get('/api/typing/:conversationId', requireUser, async (req, res) => {
+  const c = conversations.find((x) => x.id === clean(req.params.conversationId, 40) && x.members.includes(req.uid));
+  if (!c) return res.status(404).json({ error: 'Conversation not found.' });
+  const otherId = c.members.find((m) => m !== req.uid);
+  const typing = await storage.readJson(files.typing).catch(() => ({}));
+  const te = typing[c.id];
+  if (te && te.userId === otherId && nowAgo(te.at) < 8000) {
+    const tu = findUser(te.userId) || { id: te.userId, name: 'Unknown', username: 'Unknown', color: '#8b7cf6' };
+    return res.json({ isTyping: true, user: safeUser(tu, await onlineIds()) });
+  }
+  res.json({ isTyping: false, user: null });
+});
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(null, /^image\/(png|jpeg|jpg|gif|webp)$/.test(file.mimetype)) });
 app.post('/api/upload', requireUser, (req, res) => upload.single('image')(req, res, async (err) => {
