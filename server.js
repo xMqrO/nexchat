@@ -83,8 +83,8 @@ let messages = [];
 async function reloadLists() {
   [users, conversations, messages] = await Promise.all([storage.readJson(files.users), storage.readJson(files.conversations), storage.readJson(files.messages)]);
 }
-const findUser = (id2) => users.find((u) => u.id === id2);
-const conversationFor = (a, b) => conversations.find((c) => c.members.includes(a) && c.members.includes(b));
+const findUser = (id2) => users.find((u) => u && u.id === id2);
+const conversationFor = (a, b) => conversations.find((c) => Array.isArray(c?.members) && c.members.includes(a) && c.members.includes(b));
 
 const app = express();
 app.disable('x-powered-by');
@@ -101,7 +101,7 @@ function requireUser(req, res, next) {
   req.uid = uid;
   next();
 }
-app.get('/api/health', (req, res) => { res.json({ bypass: AUTH_BYPASS, bypassRaw: String(process.env.AUTH_BYPASS || '').split('').map((c) => c.charCodeAt(0)) }); });
+app.get('/api/health', (req, res) => { res.json({ bypass: AUTH_BYPASS, mode: storage.mode, bypassRaw: String(process.env.AUTH_BYPASS || '').split('').map((c) => c.charCodeAt(0)) }); });
 
 const setCookie = (res, token, maxAge = true) => { const base = `nexchat_session=${token}; HttpOnly; SameSite=Lax; Path=/`; res.setHeader('Set-Cookie', maxAge ? `${base}; Max-Age=${30 * 24 * 60 * 60}` : `${base}; Max-Age=0`); };
 

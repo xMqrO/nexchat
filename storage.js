@@ -14,7 +14,40 @@ const r2 = {
   secretKey: process.env.R2_SECRET_ACCESS_KEY || ''
 };
 
-const mode = (r2.account && r2.bucket && r2.accessKey && r2.secretKey) ? 'r2' : (repo && token ? 'api' : 'local');
+const turso = {
+  url: process.env.TURSO_URL || '',
+  token: process.env.TURSO_TOKEN || ''
+};
+
+const mode = (turso.url && turso.token) ? 'turso' : (r2.account && r2.bucket && r2.accessKey && r2.secretKey) ? 'r2' : (repo && token ? 'api' : 'local');
+
+let client = null;
+let readyPromise = null;
+let clientUnavailable = false;
+if (mode === 'turso') {
+  try {
+    const { createClient } = require('@libsql/client');
+    client = createClient({ url: turso.url, authToken: turso.token });
+  } catch { clientUnavailable = true; }
+}
+function ready() {
+  if (mode !== 'turso') return Promise.resolve();
+  if (clientUnavailable || !client) return Promise.reject(new Error('Turso client unavailable'));
+  if (!readyPromise) {
+    readyPromise = client.execute('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)')
+      .then(() => {}).catch((e) => { readyPromise = null; throw e; });
+  }
+  return readyPromise;
+}
+async function tursoGet(key) {
+  await ready();
+  const r = await client.execute({ sql: 'SELECT value FROM kv WHERE key = ?', args: [key] });
+  return (r.rows && r.rows.length) ? String(r.rows[0].value) : null;
+}
+async function tursoSet(key, value) {
+  await ready();
+  await client.execute({ sql: 'INSERT INTO kv(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', args: [key, value] });
+}
 
 const apiUrl = (p) => `https://api.github.com/repos/${repo}/contents/${p}?ref=${branch}`;
 const HEADERS = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'nexchat' };
@@ -23,10 +56,10 @@ const localData = () => path.join(ROOT, 'data');
 const localUploads = () => path.join(ROOT, 'uploads');
 
 const PHYSICAL = {
-  'users.json': 'db.json', 'conversations.json': 'db.json', 'messages.json': 'db.json',
-  'presence.json': 'live.json', 'typing.json': 'live.json'
+  'users.json': 'users.json', 'conversations.json': 'conversations.json', 'messages.json': 'messages.json',
+  'presence.json': 'presence.json', 'typing.json': 'typing.json'
 };
-const TTL = { 'db.json': 9000, 'live.json': 15000 };
+const TTL = { 'users.json': 9000, 'conversations.json': 9000, 'messages.json': 9000, 'presence.json': 15000, 'typing.json': 15000 };
 
 let cache = new Map();
 let inflight = new Map();
@@ -113,6 +146,7 @@ const dataDir = path.join(ROOT, 'data');
 const uploadsDir = path.join(ROOT, 'uploads');
 
 function ensure() {
+  if (mode === 'turso') { ready().catch(() => {}); return; }
   if (mode !== 'local') return;
   for (const dir of [dataDir, uploadsDir, path.join(uploadsDir, 'avatars'), path.join(uploadsDir, 'messages'), path.join(uploadsDir, 'covers')]) fs.mkdirSync(dir, { recursive: true });
 }
@@ -130,6 +164,11 @@ function cacheGet(p) {
 }
 
 async function fetchRaw(p) {
+  if (mode === 'turso') {
+    const val = await tursoGet(p);
+    if (val == null) return [];
+    try { return JSON.parse(val); } catch { return []; }
+  }
   if (mode === 'r2') {
     const buf = await r2ReadText(p);
     if (!buf) return [];
@@ -142,7 +181,7 @@ async function fetchRaw(p) {
 
 async function readJson(name) {
   const p = physical(name);
-  if (mode === 'r2' || mode === 'api') {
+  if (mode === 'turso' || mode === 'r2' || mode === 'api') {
     const hit = cacheGet(p);
     if (hit) return hit.data;
     if (inflight.has(p)) return inflight.get(p);
@@ -170,6 +209,10 @@ async function readJson(name) {
 async function writeJson(name, value) {
   const p = physical(name);
   const raw = JSON.stringify(value, null, 2);
+  if (mode === 'turso') return serialized(async () => {
+    await tursoSet(p, raw);
+    cache.set(p, { data: value, ts: Date.now() });
+  });
   if (mode === 'r2') return serialized(async () => {
     await r2Write(p, Buffer.from(raw, 'utf8'));
     cache.set(p, { data: value, ts: Date.now() });
@@ -192,6 +235,10 @@ async function writeJson(name, value) {
 
 async function readUpload(relPath) {
   const rel = sanitize(relPath);
+  if (mode === 'turso') {
+    const val = await tursoGet(`upload:${rel}`);
+    return val == null ? null : Buffer.from(val, 'base64');
+  }
   if (mode === 'r2') {
     const buf = await r2ReadText(`uploads/${rel}`);
     return buf || null;
@@ -208,6 +255,10 @@ async function readUpload(relPath) {
 
 async function writeUpload(name, buffer) {
   const rel = sanitize(name);
+  if (mode === 'turso') {
+    await serialized(() => tursoSet(`upload:${rel}`, buffer.toString('base64')).then(() => {}));
+    return `/uploads/${rel}`;
+  }
   if (mode === 'r2') {
     await serialized(() => r2Write(`uploads/${rel}`, buffer).then(() => {}));
     return `/uploads/${rel}`;
