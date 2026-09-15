@@ -242,7 +242,7 @@ app.get('/uploads/*', async (req, res) => {
   } catch { res.status(404).end(); }
 });
 
-app.use(express.static(PUBLIC));
+app.use(express.static(PUBLIC, { setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=300') }));
 app.get('*', (req, res) => res.sendFile(path.join(PUBLIC, 'index.html')));
 
 if (require.main === module) {
