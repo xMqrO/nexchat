@@ -1,12 +1,12 @@
 {
   "name": "nexchat",
   "version": "1.0.0",
-  "description": "A responsive real-time private chat application using Express, Socket.IO, and JSON storage.",
+  "description": "A responsive private chat application with GitHub-backed JSON storage.",
   "main": "server.js",
   "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
   "dependencies": {
     "express": "^4.21.2",
-    "multer": "^1.4.5-lts.1",
-    "socket.io": "^4.8.1"
+    "multer": "^1.4.5-lts.1"
   }
 }
