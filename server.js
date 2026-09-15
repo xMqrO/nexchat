@@ -54,7 +54,7 @@ const currentUser = (req) => { const o = verify(cookieToken(req)); return o ? o.
 async function onlineIds() {
   const p = await storage.readJson(files.presence).catch(() => ({}));
   const now = Date.now();
-  return new Set(Object.entries(p).filter(([, t]) => now - t < 40000).map(([uid]) => uid));
+  return new Set(Object.entries(p).filter(([, t]) => now - t < 150000).map(([uid]) => uid));
 }
 async function markOnline(uid) {
   const p = await storage.readJson(files.presence).catch(() => ({}));
