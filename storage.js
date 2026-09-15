@@ -179,10 +179,10 @@ async function fetchRaw(p) {
   try { return JSON.parse(fromB64(j.content)); } catch { return []; }
 }
 
-async function readJson(name) {
+async function readJson(name, fresh) {
   const p = physical(name);
   if (mode === 'turso' || mode === 'r2' || mode === 'api') {
-    const hit = cacheGet(p);
+    const hit = !fresh && cacheGet(p);
     if (hit) return hit.data;
     if (inflight.has(p)) return inflight.get(p);
     const task = (async () => {

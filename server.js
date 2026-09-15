@@ -149,7 +149,7 @@ app.put('/api/profile', requireUser, async (req, res) => {
 });
 app.get('/api/conversations', requireUser, async (req, res) => {
   const online = await onlineIds();
-  const typing = await storage.readJson(files.typing).catch(() => ({}));
+  const typing = await storage.readJson(files.typing, true).catch(() => ({}));
   const list = [];
   for (const c of conversations.filter((x) => x.members.includes(req.uid))) list.push(await hydrateConversation(c, req.uid, online, typing));
   list.sort((a, b) => new Date(b.lastMessage?.createdAt || b.createdAt) - new Date(a.lastMessage?.createdAt || a.createdAt));
@@ -160,7 +160,7 @@ app.post('/api/conversations', requireUser, async (req, res) => {
   if (!other || other.id === req.uid) return res.status(404).json({ error: other ? 'You cannot message yourself.' : 'No user found.' });
   let c = conversationFor(req.uid, other.id);
   if (!c) { c = { id: id('conv'), members: [req.uid, other.id], createdAt: new Date().toISOString(), theme: { background: '', color: '#8b7cf6' } }; conversations.push(c); await storage.writeJson(files.conversations, conversations); }
-  res.json({ conversation: await hydrateConversation(c, req.uid, await onlineIds(), await storage.readJson(files.typing).catch(() => ({}))) });
+  res.json({ conversation: await hydrateConversation(c, req.uid, await onlineIds(), await storage.readJson(files.typing, true).catch(() => ({}))) });
 });
 app.get('/api/messages/:conversationId', requireUser, async (req, res) => {
   const c = conversations.find((x) => x.id === req.params.conversationId && x.members.includes(req.uid));
@@ -199,7 +199,7 @@ app.post('/api/presence', requireUser, async (req, res) => { await markOnline(re
 app.post('/api/typing', requireUser, async (req, res) => {
   const c = conversations.find((x) => x.id === clean(req.body.conversationId, 40) && x.members.includes(req.uid));
   if (!c) return res.json({ ok: true });
-  const typing = await storage.readJson(files.typing).catch(() => ({}));
+  const typing = await storage.readJson(files.typing, true).catch(() => ({}));
   if (req.body.isTyping) { const prev = typing[c.id]; if (prev && prev.userId === req.uid && nowAgo(prev.at) < 2000) return res.json({ ok: true }); typing[c.id] = { userId: req.uid, at: Date.now() }; }
   else if (typing[c.id]?.userId === req.uid) delete typing[c.id];
   else return res.json({ ok: true });
@@ -210,7 +210,7 @@ app.get('/api/typing/:conversationId', requireUser, async (req, res) => {
   const c = conversations.find((x) => x.id === clean(req.params.conversationId, 40) && x.members.includes(req.uid));
   if (!c) return res.status(404).json({ error: 'Conversation not found.' });
   const otherId = c.members.find((m) => m !== req.uid);
-  const typing = await storage.readJson(files.typing).catch(() => ({}));
+  const typing = await storage.readJson(files.typing, true).catch(() => ({}));
   const te = typing[c.id];
   if (te && te.userId === otherId && nowAgo(te.at) < 8000) {
     const tu = findUser(te.userId) || { id: te.userId, name: 'Unknown', username: 'Unknown', color: '#8b7cf6' };
