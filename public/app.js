@@ -6,6 +6,38 @@ const avatar = (u, cls='') => `<div class="avatar ${cls}" style="background:${u?
 const toast = (message, kind='ok') => { const el=document.createElement('div'); el.className='toast'; el.style.borderLeftColor=kind==='error'?'var(--danger)':'var(--accent)'; el.textContent=message; $('#toast-root').append(el); setTimeout(()=>el.remove(),3200); };
 async function api(url, options={}) { const res=await fetch(url,{credentials:'same-origin',...options,headers:{...(options.body instanceof FormData?{}:{'Content-Type':'application/json'}),...(options.headers||{})}}); const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error || 'Something went wrong.'); return data; }
 function show(section){ ['splash','auth','app'].forEach(id=>$('#'+id).classList.toggle('hidden',id!==section)); }
+let googleCfg = null;
+async function initGoogleAuth(){
+  try{ googleCfg = await api('/api/auth/google/config'); } catch { googleCfg = { enabled:false }; }
+  const wrap = googleCfg && googleCfg.enabled ? $('.google-wrap') : null;
+  if(wrap) wrap.classList.remove('hidden');
+  const btn = $('#google-btn');
+  if(btn) btn.onclick = startGoogleAuth;
+}
+function setGoogleBtn(loading){ const btn=$('#google-btn'); if(!btn)return; btn.disabled=!!loading; const l=btn.querySelector('.g-label'); if(l)l.textContent=loading?'Connecting to Google…':'Continue with Google'; }
+function pkceVerifier(){ const a=new Uint8Array(32); crypto.getRandomValues(a); return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+async function pkceChallenge(v){ const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)); return btoa(String.fromCharCode(...new Uint8Array(h))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+async function startGoogleAuth(){
+  if(!googleCfg||!googleCfg.enabled) return toast('Google login is not configured.','error');
+  setGoogleBtn(true);
+  try{
+    const verifier=pkceVerifier(), challenge=await pkceChallenge(verifier);
+    const state=Math.random().toString(36).slice(2)+Date.now().toString(36);
+    try{ sessionStorage.setItem('google_verifier',verifier); sessionStorage.setItem('google_state',state); } catch {}
+    const q=new URLSearchParams({provider:'google',redirect_to:location.origin+googleCfg.redirectTo,flow_type:'pkce',code_challenge:challenge,code_challenge_method:'S256',scope:'email profile openid',state,apikey:googleCfg.anonKey});
+    location.href=googleCfg.url+'/auth/v1/authorize?'+q.toString();
+  }catch(e){ setGoogleBtn(false); toast('Could not start Google login.','error'); }
+}
+async function handleAuthCallback(){
+  const p=new URLSearchParams(location.search), code=p.get('code'), state=p.get('state'), err=p.get('error');
+  let verifier=null, expState=null;
+  try{ verifier=sessionStorage.getItem('google_verifier'); expState=sessionStorage.getItem('google_state'); sessionStorage.removeItem('google_verifier'); sessionStorage.removeItem('google_state'); } catch {}
+  const fail=(msg)=>{ if(msg)toast(msg,'error'); show('auth'); history.replaceState(null,'','/'); return false; };
+  if(err) return fail(err==='access_denied'?'Google sign-in was cancelled.':'Google sign-in failed. Please try again.');
+  if(!code||!state||!expState||state!==expState||!verifier) return fail('Google sign-in could not be completed. Please try again.');
+  try{ const d=await api('/api/auth/google/callback',{method:'POST',body:JSON.stringify({code,verifier,state})}); me=d.user; history.replaceState(null,'','/'); bootApp(); return true; }
+  catch(e){ return fail(e.message); }
+}
 function bindAuth(){ $$('.tab').forEach(btn=>btn.onclick=()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); btn.classList.add('active'); $('#login-form').classList.toggle('hidden',btn.dataset.auth!=='login'); $('#register-form').classList.toggle('hidden',btn.dataset.auth!=='register'); }); $('#login-form form').onsubmit=async e=>{e.preventDefault(); const f=new FormData(e.target); try{const d=await api('/api/login',{method:'POST',body:JSON.stringify(Object.fromEntries(f))}); me=d.user; bootApp();}catch(err){toast(err.message,'error')}}; $('#register-form form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target), obj=Object.fromEntries(f);if(obj.password!==obj.confirm)return toast('Passwords do not match.','error');try{await api('/api/register',{method:'POST',body:JSON.stringify(obj)});toast('Account created — welcome!');const d=await api('/api/login',{method:'POST',body:JSON.stringify(obj)});me=d.user;bootApp()}catch(err){toast(err.message,'error')}}; }
 function renderMe(){ $('#user-name').textContent=me.name||me.username; $('#user-handle').textContent='@'+me.username; $('#user-avatar').style.background=me.color; $('#user-avatar').innerHTML=me.avatar?`<img src="${escapeHTML(me.avatar)}" alt="">`:initials(me.name||me.username); }
 async function loadConversations(){ if(loadPromise) return loadPromise; loadPromise=api('/api/conversations').then(d=>{conversations=d.conversations;renderConversations();}).finally(()=>{loadPromise=null}); return loadPromise; }
@@ -28,4 +60,4 @@ function showSettings(){modal('Settings',`<div style="display:grid;gap:8px"><but
 function showChatSettings(){if(!active)return;modal('Conversation settings',`<p class="muted">Choose a subtle background for this conversation.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="secondary theme-choice" data-bg="">Default</button><button class="secondary theme-choice" data-bg="linear-gradient(135deg,#221e45,#11141b)">Violet</button><button class="secondary theme-choice" data-bg="linear-gradient(135deg,#12333a,#11141b)">Ocean</button><button class="secondary theme-choice" data-bg="linear-gradient(135deg,#3a241d,#11141b)">Ember</button></div><hr style="border:0;border-top:1px solid var(--line);margin:18px 0 12px"><p class="muted">Share this conversation</p><button class="secondary" style="margin-top:6px" onclick="navigator.clipboard.writeText(location.origin+'/'+encodeURIComponent(active.other.username)+'/message').then(()=>{closeModal();toast('Chat link copied')}).catch(()=>toast('Could not copy link','error'))">🔗 Copy chat link</button>`);$$('.theme-choice').forEach(b=>b.onclick=async()=>{await api('/api/conversations/'+active.id+'/theme',{method:'PUT',body:JSON.stringify({background:b.dataset.bg,color:me.color})});$('.chat-panel').style.background=b.dataset.bg||'';closeModal();toast('Conversation theme updated')})}
 function showWelcome(){ active=null; $('.chat-panel').style.background=''; $('#typing').classList.add('hidden'); $('#messages').innerHTML='<div class="welcome-state"><div class="welcome-icon">✦</div><h2>Your conversations, your way.</h2><p>Add a member from the sidebar to begin a private conversation.</p><button class="primary" id="welcome-add">＋ Add a member</button></div>'; $('#welcome-add').onclick=showAdd; $('#chat-person').innerHTML='<div class="avatar small">N</div><div><h2>Select a conversation</h2><p>Choose a person to start chatting</p></div>'; $('#message-input').disabled=true; const sb=$('.send-btn'); if(sb)sb.disabled=true; }
 function bootApp(){ show('app'); renderMe(); bindApp(); connectSocket(); loadConversations().then(()=>{ const who=(location.pathname.match(/^\/([^\/]+)\/message$/i)||[])[1]; if(who){ const c=conversations.find(x=>x.other.username.toLowerCase()===decodeURIComponent(who).toLowerCase()); if(c)openConversation(c.id); } }); }
-(async function init(){bindAuth();setTimeout(async()=>{try{const d=await api('/api/me');if(d.user){me=d.user;bootApp()}else show('auth')}catch{show('auth')}},2000)})();
+(async function init(){bindAuth();initGoogleAuth();const isCb=/^\/auth\/callback$/.test(location.pathname);if(isCb){if(await handleAuthCallback())return;}setTimeout(async()=>{try{const d=await api('/api/me');if(d.user){me=d.user;bootApp()}else show('auth')}catch{show('auth')}},isCb?600:2000)})();

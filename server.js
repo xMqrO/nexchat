@@ -13,6 +13,9 @@ const files = { users: 'users.json', conversations: 'conversations.json', messag
 const SECRET = process.env.SESSION_SECRET || 'nexchat-dev-secret-change-me';
 const AUTH_BYPASS = process.env.AUTH_BYPASS === '1';
 const DEMO_AUTO = 'NC-482913';
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const GOOGLE_AUTH = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 storage.ensure();
 const demoUsers = [
@@ -105,14 +108,79 @@ app.get('/api/health', (req, res) => { res.json({ bypass: AUTH_BYPASS, mode: sto
 
 const setCookie = (res, token, maxAge = true) => { const base = `nexchat_session=${token}; HttpOnly; SameSite=Lax; Path=/`; res.setHeader('Set-Cookie', maxAge ? `${base}; Max-Age=${30 * 24 * 60 * 60}` : `${base}; Max-Age=0`); };
 
+const googleColors = ['#8b7cf6', '#32c5d2', '#ff8a65', '#65d38a', '#e68bd1'];
+function uniqueUsername(base) {
+  let name = clean(String(base || '').toLowerCase().replace(/[^a-z0-9._-]/g, ''), 28) || 'user';
+  let candidate = name, n = 0;
+  while (users.some((u) => u.username.toLowerCase() === candidate.toLowerCase())) {
+    n++; const keep = Math.max(4, 31 - String(n).length);
+    candidate = name.slice(0, keep) + n;
+  }
+  return candidate;
+}
+async function googleUserFromSession(data) {
+  const su = data && data.user;
+  const email = String((su && su.email) || '').toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  const meta = (su && su.user_metadata) || {};
+  const gName = clean(meta.name || meta.full_name || '', 40);
+  const gAvatar = clean(meta.avatar_url || meta.picture || '', 500);
+  const googleId = String((su && su.id) || '');
+  const localPart = email.split('@')[0];
+  let u = users.find((x) => x.email && x.email.toLowerCase() === email)
+    || users.find((x) => x.username && x.username.toLowerCase() === email)
+    || users.find((x) => x.username && x.username.toLowerCase() === localPart);
+  if (!u) {
+    u = { id: memberId(), name: gName || localPart, username: uniqueUsername(localPart), password: crypto.randomBytes(16).toString('hex'), avatar: gAvatar, bio: 'New to NexChat.', color: googleColors[users.length % googleColors.length], email, googleId, createdAt: new Date().toISOString() };
+    users.push(u);
+    await storage.writeJson(files.users, users);
+  } else {
+    let changed = false;
+    if (!u.email) { u.email = email; changed = true; }
+    if (!u.googleId) { u.googleId = googleId; changed = true; }
+    if (changed) await storage.writeJson(files.users, users);
+  }
+  return u;
+}
+app.get('/api/auth/google/config', (req, res) => {
+  if (!GOOGLE_AUTH) return res.json({ enabled: false });
+  res.json({ enabled: true, url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY, redirectTo: '/auth/callback' });
+});
+app.post('/api/auth/google/callback', async (req, res) => {
+  if (!GOOGLE_AUTH) return res.status(503).json({ error: 'Google sign-in is not configured on this server.' });
+  const code = clean(req.body.code, 500);
+  const verifier = clean(req.body.verifier, 200);
+  if (!code || !/^[A-Za-z0-9._~-]{43,150}$/.test(verifier)) return res.status(400).json({ error: 'Invalid sign-in request.' });
+  let data;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=pkce`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ auth_code: code, code_verifier: verifier })
+    });
+    data = await r.json();
+    if (!r.ok) return res.status(401).json({ error: 'Google sign-in could not be verified. Please try again.' });
+  } catch { return res.status(503).json({ error: 'Google sign-in is temporarily unavailable.' }); }
+  if (!data || !data.user || !data.user.email || data.user.app_metadata?.provider !== 'google') return res.status(401).json({ error: 'Google sign-in could not be verified.' });
+  const u = await googleUserFromSession(data);
+  if (!u) return res.status(401).json({ error: 'Google sign-in could not be verified.' });
+  setCookie(res, sign({ uid: u.id }));
+  await markOnline(u.id);
+  res.json({ user: safeUser(u, await onlineIds()) });
+});
+
 app.post('/api/register', async (req, res) => {
   if (AUTH_BYPASS) return res.status(403).json({ error: 'Registration is temporarily disabled.' });
   const username = clean(req.body.username, 32), password = String(req.body.password || '');
   if (username.length < 3 || password.length < 4) return res.status(400).json({ error: 'Username must be 3+ characters and password 4+ characters.' });
   if (users.some((u) => u.username.toLowerCase() === username.toLowerCase())) return res.status(409).json({ error: 'That username is already taken.' });
+  const rawEmail = clean(req.body.email, 120).toLowerCase();
+  if (rawEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) return res.status(400).json({ error: 'Enter a valid email address, or leave it empty.' });
+  if (rawEmail && users.some((u) => u.email && u.email.toLowerCase() === rawEmail)) return res.status(409).json({ error: 'An account with that email already exists. Try signing in with Google.' });
   let uid; do uid = memberId(); while (findUser(uid));
   const name = clean(req.body.name, 40) || username;
   const user = { id: uid, name, username, password, avatar: '', bio: 'New to NexChat.', color: ['#8b7cf6', '#32c5d2', '#ff8a65', '#65d38a', '#e68bd1'][users.length % 5], createdAt: new Date().toISOString() };
+  if (rawEmail) user.email = rawEmail;
   users.push(user);
   await storage.writeJson(files.users, users);
   const token = sign({ uid: user.id });
