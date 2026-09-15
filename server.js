@@ -176,6 +176,7 @@ app.post('/api/messages', requireUser, async (req, res) => {
   const otherId = c.members.find((m) => m !== req.uid);
   const now = await onlineIds();
   const message = { id: id('msg'), conversationId: c.id, senderId: req.uid, type: req.body.type === 'image' ? 'image' : 'text', content: text, status: now.has(otherId) ? 'delivered' : 'sent', createdAt: new Date().toISOString() };
+  if (req.body.tempId) message.tempId = clean(req.body.tempId, 30);
   messages.push(message);
   await storage.writeJson(files.messages, messages);
   res.json({ message: { ...message, sender: safeUser(req.user) } });
