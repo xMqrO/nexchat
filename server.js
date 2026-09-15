@@ -67,7 +67,7 @@ async function markOnline(uid) {
 const nowAgo = (t) => (t ? Date.now() - t : Infinity);
 async function hydrateConversation(c, userId, online, typing) {
   const otherId = c.members.find((m) => m !== userId);
-  const convMessages = (await storage.readJson(files.messages)).filter((m) => m.conversationId === c.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const convMessages = (await storage.readJson(files.messages, true)).filter((m) => m.conversationId === c.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   let typ = null;
   const te = typing && typing[c.id];
   if (te && te.userId !== userId && te.userId === otherId && nowAgo(te.at) < 8000) {
@@ -166,7 +166,7 @@ app.get('/api/messages/:conversationId', requireUser, async (req, res) => {
   const c = conversations.find((x) => x.id === req.params.conversationId && x.members.includes(req.uid));
   if (!c) return res.status(404).json({ error: 'Conversation not found.' });
   const since = clean(req.query.laterThan, 60);
-  const list = (await storage.readJson(files.messages)).filter((m) => m.conversationId === c.id).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)).filter((m) => !since || (m.createdAt && m.createdAt > since));
+  const list = (await storage.readJson(files.messages, true)).filter((m) => m.conversationId === c.id).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)).filter((m) => !since || (m.createdAt && m.createdAt > since));
   res.json({ messages: list.map((m) => ({ ...m, sender: safeUser(findUser(m.senderId) || { id: m.senderId, username: 'Unknown', color: '#8b7cf6' }) })), members: c.members });
 });
 app.post('/api/messages', requireUser, async (req, res) => {
