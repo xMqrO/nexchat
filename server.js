@@ -9,13 +9,15 @@ const ROOT = __dirname;
 const DATA = storage.dataDir;
 const UPLOADS = storage.uploadsDir;
 const PUBLIC = path.join(ROOT, 'public');
-const files = { users: 'users.json', conversations: 'conversations.json', messages: 'messages.json', presence: 'presence.json', typing: 'typing.json' };
+const files = { users: 'users.json', conversations: 'conversations.json', messages: 'messages.json', presence: 'presence.json', typing: 'typing.json', pending: 'pending.json' };
 const SECRET = process.env.SESSION_SECRET || 'nexchat-dev-secret-change-me';
 const AUTH_BYPASS = process.env.AUTH_BYPASS === '1';
 const DEMO_AUTO = 'NC-482913';
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const GOOGLE_AUTH = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_FROM = process.env.RESEND_FROM || 'NexChat <onboarding@resend.dev>';
 
 storage.ensure();
 const demoUsers = [
@@ -52,6 +54,18 @@ function verify(raw) {
   const expect = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
   if (expect !== sig) return null;
   try { const o = JSON.parse(Buffer.from(body, 'base64url')); return o.uid && o.exp > Date.now() ? o : null; } catch { return null; }
+}
+function shortSign(obj) {
+  const body = Buffer.from(JSON.stringify({ ...obj, exp: Date.now() + 10 * 60 * 1000 })).toString('base64url');
+  const sig = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
+function shortVerify(raw) {
+  const [body, sig] = String(raw || '').split('.');
+  if (!body || !sig) return null;
+  const expect = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
+  if (expect !== sig) return null;
+  try { const o = JSON.parse(Buffer.from(body, 'base64url')); return o && o.exp > Date.now() ? o : null; } catch { return null; }
 }
 const cookieToken = (req) => req.headers.cookie?.match(/(?:^|;)\s*nexchat_session=([^;]+)/)?.[1] || '';
 const currentUser = (req) => { const o = verify(cookieToken(req)); return o ? o.uid : null; };
@@ -109,38 +123,27 @@ app.get('/api/health', (req, res) => { res.json({ bypass: AUTH_BYPASS, mode: sto
 const setCookie = (res, token, maxAge = true) => { const base = `nexchat_session=${token}; HttpOnly; SameSite=Lax; Path=/`; res.setHeader('Set-Cookie', maxAge ? `${base}; Max-Age=${30 * 24 * 60 * 60}` : `${base}; Max-Age=0`); };
 
 const googleColors = ['#8b7cf6', '#32c5d2', '#ff8a65', '#65d38a', '#e68bd1'];
-function uniqueUsername(base) {
-  let name = clean(String(base || '').toLowerCase().replace(/[^a-z0-9._-]/g, ''), 28) || 'user';
-  let candidate = name, n = 0;
-  while (users.some((u) => u.username.toLowerCase() === candidate.toLowerCase())) {
-    n++; const keep = Math.max(4, 31 - String(n).length);
-    candidate = name.slice(0, keep) + n;
-  }
-  return candidate;
+const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+const genCode = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+async function readPending() { return await storage.readJson(files.pending, true).catch(() => ({})); }
+async function writePending(p) { await storage.writeJson(files.pending, p); }
+function validDob(day, month, year) {
+  const d = parseInt(day, 10), m = parseInt(month, 10), y = parseInt(year, 10);
+  if (!d || !m || !y || d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) return null;
+  const daysIn = new Date(y, m, 0).getDate();
+  if (d > daysIn) return null;
+  return { day: d, month: m, year: y };
 }
-async function googleUserFromSession(data) {
-  const su = data && data.user;
-  const email = String((su && su.email) || '').toLowerCase();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
-  const meta = (su && su.user_metadata) || {};
-  const gName = clean(meta.name || meta.full_name || '', 40);
-  const gAvatar = clean(meta.avatar_url || meta.picture || '', 500);
-  const googleId = String((su && su.id) || '');
-  const localPart = email.split('@')[0];
-  let u = users.find((x) => x.email && x.email.toLowerCase() === email)
-    || users.find((x) => x.username && x.username.toLowerCase() === email)
-    || users.find((x) => x.username && x.username.toLowerCase() === localPart);
-  if (!u) {
-    u = { id: memberId(), name: gName || localPart, username: uniqueUsername(localPart), password: crypto.randomBytes(16).toString('hex'), avatar: gAvatar, bio: 'New to NexChat.', color: googleColors[users.length % googleColors.length], email, googleId, createdAt: new Date().toISOString() };
-    users.push(u);
-    await storage.writeJson(files.users, users);
-  } else {
-    let changed = false;
-    if (!u.email) { u.email = email; changed = true; }
-    if (!u.googleId) { u.googleId = googleId; changed = true; }
-    if (changed) await storage.writeJson(files.users, users);
-  }
-  return u;
+async function sendVerificationEmail(to, code) {
+  if (!RESEND_API_KEY) return false;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: RESEND_FROM, to, subject: 'NexChat — verify your email', html: `<div style="font-family:Arial,sans-serif;max-width:420px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:14px"><h2 style="margin-top:0">Welcome to NexChat</h2><p>Use this code to verify your email:</p><p style="font-size:30px;font-weight:700;letter-spacing:8px;color:#8b7cf6">${code}</p><p style="color:#6b7280;font-size:13px">The code expires in 10 minutes. If you didn't request this, you can ignore this email.</p></div>` })
+    });
+    return r.ok;
+  } catch { return false; }
 }
 app.get('/api/auth/google/config', (req, res) => {
   if (!GOOGLE_AUTH) return res.json({ enabled: false });
@@ -162,11 +165,41 @@ app.post('/api/auth/google/callback', async (req, res) => {
     if (!r.ok) return res.status(401).json({ error: 'Google sign-in could not be verified. Please try again.' });
   } catch { return res.status(503).json({ error: 'Google sign-in is temporarily unavailable.' }); }
   if (!data || !data.user || !data.user.email || data.user.app_metadata?.provider !== 'google') return res.status(401).json({ error: 'Google sign-in could not be verified.' });
-  const u = await googleUserFromSession(data);
-  if (!u) return res.status(401).json({ error: 'Google sign-in could not be verified.' });
+  const meta = data.user.user_metadata || {};
+  const email = String(data.user.email).toLowerCase();
+  const name = clean(meta.name || meta.full_name || meta.name || '', 40);
+  const avatar = clean(meta.avatar_url || meta.picture || '', 500);
+  const googleId = String(data.user.id || '');
+  res.json({ link: shortSign({ kind: 'gl', email, name, avatar, googleId }), email, name });
+});
+app.post('/api/auth/google/link', async (req, res) => {
+  const link = shortVerify(clean(req.body.link, 500));
+  if (!link || link.kind !== 'gl') return res.status(401).json({ error: 'This Google sign-in has expired. Please try again.' });
+  const email = String(link.email || '').toLowerCase();
+  if (!email) return res.status(401).json({ error: 'This Google sign-in could not be verified.' });
+  const username = clean(req.body.username, 32).toLowerCase();
+  const name = clean(req.body.name, 40) || clean(link.name, 40) || username;
+  const password = String(req.body.password || '');
+  if (username.length < 3) return res.status(400).json({ error: 'Username must be 3+ characters.' });
+  if (password.length < 4) return res.status(400).json({ error: 'Password must be 4+ characters.' });
+  const takenByOther = users.some((u) => u.username.toLowerCase() === username && (u.email || '').toLowerCase() !== email);
+  if (takenByOther) return res.status(409).json({ error: 'That username is already taken.' });
+  let u = users.find((x) => x.email && x.email.toLowerCase() === email);
+  if (!u) {
+    if (users.some((x) => x.email && x.email.toLowerCase() === email)) return res.status(409).json({ error: 'An account with that email already exists.' });
+    u = { id: memberId(), name, username, password, email, googleId: link.googleId, avatar: link.avatar || '', bio: 'New to NexChat.', color: googleColors[users.length % googleColors.length], createdAt: new Date().toISOString() };
+    users.push(u);
+    await storage.writeJson(files.users, users);
+  } else {
+    const autoPassword = !u.password || u.password.length === 32; // accounts created by the old auto Google flow
+    if (!autoPassword && u.password !== password) return res.status(401).json({ error: 'That password does not match your existing NexChat account.' });
+    u.name = name; u.username = username; u.password = password; u.email = email;
+    u.googleId = u.googleId || link.googleId; u.avatar = u.avatar || link.avatar || '';
+    await storage.writeJson(files.users, users);
+  }
   setCookie(res, sign({ uid: u.id }));
   await markOnline(u.id);
-  res.json({ user: safeUser(u, await onlineIds()) });
+  res.json({ user: safeUser(u, await onlineIds()), linked: true });
 });
 
 app.post('/api/register', async (req, res) => {
@@ -188,10 +221,69 @@ app.post('/api/register', async (req, res) => {
   await markOnline(user.id);
   res.json({ user: safeUser(user, await onlineIds()) });
 });
+app.post('/api/register/step1', async (req, res) => {
+  if (AUTH_BYPASS) return res.status(403).json({ error: 'Registration is temporarily disabled.' });
+  const email = clean(req.body.email, 120).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+  const name = clean(req.body.name, 40);
+  const username = clean(req.body.username, 32).toLowerCase();
+  if (name.length < 2) return res.status(400).json({ error: 'Enter your display name.' });
+  if (username.length < 3) return res.status(400).json({ error: 'Username must be 3+ characters.' });
+  if (users.some((u) => u.email && u.email.toLowerCase() === email)) return res.status(409).json({ error: 'An account with that email already exists. Try signing in.' });
+  if (users.some((u) => u.username.toLowerCase() === username)) return res.status(409).json({ error: 'That username is already taken.' });
+  const dob = validDob(req.body.day, req.body.month, req.body.year);
+  if (!dob) return res.status(400).json({ error: 'Enter a valid date of birth.' });
+  const pend = await readPending();
+  const now = Date.now();
+  const previous = pend[email];
+  if (previous && now - previous.sentAt < 60000) return res.status(429).json({ error: 'Please wait a moment before requesting another code.' });
+  const code = genCode();
+  const sent = await sendVerificationEmail(email, code);
+  if (!sent) return res.status(503).json({ error: 'We could not send the verification email. Email service not configured.' });
+  pend[email] = { id: id('reg'), email, name, username, dob, codeHash: sha256(code), codeExp: now + 600000, verified: false, attempts: 0, sentAt: now, createdAt: now };
+  await writePending(pend);
+  res.json({ email });
+});
+app.post('/api/register/verify', async (req, res) => {
+  const email = clean(req.body.email, 120).toLowerCase();
+  const code = clean(req.body.code, 6);
+  const pend = await readPending();
+  const p = pend[email];
+  if (!p || p.verified) return res.status(400).json({ error: 'No pending registration found for that email.' });
+  if (p.codeExp < Date.now()) { delete pend[email]; await writePending(pend); return res.status(410).json({ error: 'That code has expired. Start over.' }); }
+  p.attempts = (p.attempts || 0) + 1;
+  if (p.attempts > 5) { delete pend[email]; await writePending(pend); return res.status(429).json({ error: 'Too many attempts. Please start over.' }); }
+  if (!/^\d{6}$/.test(code) || sha256(code) !== p.codeHash) { await writePending(pend); return res.status(401).json({ error: 'That code is incorrect.' }); }
+  p.verified = true;
+  await writePending(pend);
+  res.json({ token: shortSign({ kind: 'reg', email }) });
+});
+app.post('/api/register/complete', async (req, res) => {
+  const token = shortVerify(clean(req.body.token, 500));
+  if (!token || token.kind !== 'reg') return res.status(401).json({ error: 'Your sign-up session has expired. Please start over.' });
+  const email = String(token.email || '').toLowerCase();
+  const password = String(req.body.password || '');
+  if (password.length < 4) return res.status(400).json({ error: 'Password must be 4+ characters.' });
+  const pend = await readPending();
+  const p = pend[email];
+  if (!p || !p.verified) return res.status(401).json({ error: 'Please verify your email first.' });
+  if (users.some((u) => u.email && u.email.toLowerCase() === email)) return res.status(409).json({ error: 'That email already has an account.' });
+  if (users.some((u) => u.username.toLowerCase() === p.username)) return res.status(409).json({ error: 'That username is already taken.' });
+  const user = { id: memberId(), name: p.name, username: p.username, password, email, dob: p.dob, avatar: '', bio: 'New to NexChat.', color: googleColors[users.length % googleColors.length], createdAt: new Date().toISOString() };
+  users.push(user);
+  await storage.writeJson(files.users, users);
+  delete pend[email];
+  await writePending(pend);
+  setCookie(res, sign({ uid: user.id }));
+  await markOnline(user.id);
+  res.json({ user: safeUser(user, await onlineIds()) });
+});
 app.post('/api/login', async (req, res) => {
-  let user = users.find((u) => u.username.toLowerCase() === String(req.body.username || '').toLowerCase() && u.password === String(req.body.password || ''));
+  const identifier = clean(req.body.identifier || req.body.username, 120).toLowerCase();
+  const password = String(req.body.password || '');
+  let user = users.find((u) => (u.username.toLowerCase() === identifier || (u.email && u.email.toLowerCase() === identifier)) && u.password === password);
   if (!user && AUTH_BYPASS) user = findUser(DEMO_AUTO) || demoUsers[0] || null;
-  if (!user) return res.status(401).json({ error: 'Invalid username or password.' });
+  if (!user) return res.status(401).json({ error: 'Invalid email or username, or wrong password.' });
   const token = sign({ uid: user.id });
   setCookie(res, token);
   await markOnline(user.id);
