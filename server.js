@@ -9,7 +9,7 @@ const ROOT = __dirname;
 const DATA = storage.dataDir;
 const UPLOADS = storage.uploadsDir;
 const PUBLIC = path.join(ROOT, 'public');
-const files = { users: 'users.json', conversations: 'conversations.json', messages: 'messages.json', presence: 'presence.json', typing: 'typing.json', pending: 'pending.json', ipmap: 'ipmap.json', visits: 'visits.json', banned: 'banned.json', reads: 'reads.json', calls: 'calls.json' };
+const files = { users: 'users.json', conversations: 'conversations.json', messages: 'messages.json', presence: 'presence.json', typing: 'typing.json', pending: 'pending.json', ipmap: 'ipmap.json', visits: 'visits.json', banned: 'banned.json', reads: 'reads.json', calls: 'calls.json', tickets: 'tickets.json' };
 const SECRET = process.env.SESSION_SECRET || 'nexchat-dev-secret-change-me';
 const MAIN_ADMIN = String(process.env.MAIN_ADMIN || 'xmqrO').toLowerCase();
 const isGod = (u) => !!u && String(u.username || '').toLowerCase() === MAIN_ADMIN;
@@ -25,6 +25,12 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 const BREVO_FROM = process.env.BREVO_FROM || 'NexChat <no-reply@brevo.com>';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_FROM = process.env.RESEND_FROM || 'NexChat <onboarding@resend.dev>';
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || '';
+const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID || '';
+const DISCORD_SUPPORT_CATEGORY_ID = process.env.DISCORD_SUPPORT_CATEGORY_ID || '1549762135955865670';
+const DISCORD_SUPPORT_ROLE_ID = process.env.DISCORD_SUPPORT_ROLE_ID || '1549753769091276850';
+const DISCORD_SUPPORT_INVITE = process.env.DISCORD_SUPPORT_INVITE || 'https://discord.gg/UwUqRtKYGQ';
+const SUPPORT_ENABLED = !!(DISCORD_BOT_TOKEN && DISCORD_GUILD_ID && DISCORD_SUPPORT_CATEGORY_ID && DISCORD_SUPPORT_ROLE_ID);
 
 storage.ensure();
 const defaultAppearance = () => ({ theme: 'midnight', gradient: 'violet', mode: 'dark' });
@@ -791,6 +797,144 @@ app.post('/api/calls/:id/end', requireUser, async (req, res) => {
   await storage.writeJson(files.calls, calls);
   res.json({ ok: true });
 });
+/* ---------- Discord support tickets: server acts as the bot via its REST token ---------- */
+const discordApi = async (method, path, body) => {
+  if (!DISCORD_BOT_TOKEN) throw Object.assign(new Error('Discord support is not configured.'), { code: 'NO_DISCORD' });
+  const headers = { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json', 'User-Agent': 'NexChat/1.0 (https://hookhq.vercel.app; support bridge)' };
+  let res;
+  const attempt = async () => {
+    try { return await fetch('https://discord.com/api/v10' + path, { method, headers, body: body == null ? undefined : JSON.stringify(body) }); }
+    catch { return Object.assign(new Error('Discord is unreachable.'), { unreachable: true }); }
+  };
+  res = await attempt();
+  if (res && res.unreachable) throw res;
+  if (res.status === 429) {
+    const wait = Math.min(10, Math.max(0.5, parseFloat(res.headers.get('retry-after') || '1') || 1)) * 1000;
+    await new Promise((r) => setTimeout(r, wait));
+    res = await attempt();
+    if (res && res.unreachable) throw res;
+  }
+  if (!res.ok) {
+    let detail = '';
+    try { const j = await res.json(); detail = (j && (j.message || j.code)) ? String(j.message || j.code) : ''; } catch { /* ignore */ }
+    throw Object.assign(new Error('Discord request failed (' + res.status + (detail ? ': ' + detail : '') + ')'), { status: res.status });
+  }
+  if (res.status === 204) return null;
+  try { return await res.json(); } catch { return null; }
+};
+let discordBotIdPromise = null;
+const discordBotId = () => {
+  if (!discordBotIdPromise) discordBotIdPromise = discordApi('GET', '/users/@me').then((u) => (u && u.id) || null).catch(() => null);
+  return discordBotIdPromise;
+};
+const snowGt = (a, b) => { const x = String(a || ''), y = String(b || ''); if (!x) return false; if (!y) return true; if (x.length !== y.length) return x.length > y.length; return x > y; };
+const cleanSupportName = (n) => String(n || 'user').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'user';
+async function readSupportTickets() {
+  const r = await storage.readJson(files.tickets, true).catch(() => ({}));
+  return (r && typeof r === 'object' && !Array.isArray(r)) ? { counter: Number(r.counter) || 0, tickets: Array.isArray(r.tickets) ? r.tickets : [] } : { counter: 0, tickets: [] };
+}
+async function writeSupportTickets(s) { await storage.writeJson(files.tickets, s); }
+const supportTicketSummary = (t) => t ? ({ id: t.id, number: t.number, status: t.status, createdAt: t.createdAt, closedAt: t.closedAt || null, lastMessage: (t.messages && t.messages.length) ? t.messages[t.messages.length - 1] || null : null, updatedAt: (t.messages && t.messages.length) ? t.messages[t.messages.length - 1].createdAt : t.createdAt }) : null;
+app.get('/api/support/config', requireUser, (req, res) => { res.json({ enabled: SUPPORT_ENABLED, invite: DISCORD_SUPPORT_INVITE, oneOpen: true }); });
+app.get('/api/support/tickets', requireUser, async (req, res) => {
+  const s = await readSupportTickets();
+  const mine = s.tickets.filter((t) => t.userId === req.uid).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const open = mine.find((t) => t.status === 'open') || null;
+  res.json({ open: supportTicketSummary(open), tickets: mine.map(supportTicketSummary) });
+});
+app.post('/api/support/tickets', requireUser, async (req, res) => {
+  if (!SUPPORT_ENABLED) return res.status(503).json({ error: 'Support is not configured on this server yet.' });
+  const s = await readSupportTickets();
+  const existing = s.tickets.find((t) => t.userId === req.uid && t.status === 'open') || null;
+  if (existing) return res.json({ ticket: existing, reused: true });
+  const botId = await discordBotId();
+  if (!botId) return res.status(502).json({ error: 'The Discord bot is not reachable right now.' });
+  const number = (s.counter || 0) + 1;
+  const overwrites = [
+    { id: DISCORD_GUILD_ID, type: 0, deny: '1024' },
+    { id: DISCORD_SUPPORT_ROLE_ID, type: 0, allow: '109568' },
+    { id: botId, type: 0, allow: '125968' }
+  ];
+  let channel;
+  try {
+    channel = await discordApi('POST', `/guilds/${DISCORD_GUILD_ID}/channels`, {
+      name: `ticket-${number}-${cleanSupportName(req.user.username || req.user.name)}`,
+      type: 0,
+      parent_id: DISCORD_SUPPORT_CATEGORY_ID,
+      topic: `Support Ticket #${number} | NexChat: @${String(req.user.username || req.user.name).slice(0, 30)}`,
+      permission_overwrites: overwrites
+    });
+  } catch (e) { return res.status(502).json({ error: 'Could not create the ticket in Discord: ' + (e.message || 'unknown error') }); }
+  if (!channel || !channel.id) return res.status(502).json({ error: 'Discord did not return a ticket channel.' });
+  const createdAt = new Date().toISOString();
+  const ticket = { id: id('tkt'), number, channelId: channel.id, userId: req.uid, username: req.user.username || req.user.name, name: req.user.name || req.user.username, status: 'open', createdAt, closedAt: null, lastDiscordId: null, messages: [] };
+  try {
+    await discordApi('POST', `/channels/${channel.id}/messages`, { content: `🎫 **Support ticket #${number}** opened for **@${String(req.user.username || req.user.name).slice(0, 40)}** on NexChat.\nStaff replies in this channel appear instantly on the user's website ticket.` });
+  } catch { /* welcome message is best-effort */ }
+  ticket.messages.push({ id: id('tm'), kind: 'system', author: 'NexChat', content: `Ticket #${number} opened by @${String(req.user.username || req.user.name).slice(0, 40)}. Staff replies land here automatically.`, createdAt });
+  s.counter = number;
+  s.tickets.push(ticket);
+  await writeSupportTickets(s);
+  res.json({ ticket });
+});
+app.get('/api/support/tickets/:id', requireUser, async (req, res) => {
+  const s = await readSupportTickets();
+  const t = s.tickets.find((x) => x.id === clean(req.params.id, 40)) || null;
+  if (!t || (t.userId !== req.uid && !isOwner(req.user))) return res.status(404).json({ error: 'Ticket not found.' });
+  if (t.status === 'open') {
+    try {
+      const msgs = await discordApi('GET', `/channels/${t.channelId}/messages?limit=50`) || [];
+      if (Array.isArray(msgs) && msgs.length && msgs[0].id) {
+        const botId = await discordBotId();
+        const maxId = msgs[0].id;
+        let added = 0;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          const m = msgs[i];
+          if (!m || !m.id || !snowGt(m.id, t.lastDiscordId)) continue;
+          if (m.author && String(m.author.id) === String(botId)) continue;
+          const content = clean(m.content, 2000);
+          if (!content) continue;
+          t.messages.push({ id: 'd' + m.id, kind: 'staff', author: (m.author && (m.author.global_name || m.author.username)) || 'Support Team', content, createdAt: m.timestamp || new Date().toISOString() });
+          added++;
+        }
+        if (added || snowGt(maxId, t.lastDiscordId)) t.lastDiscordId = maxId;
+        if (added) await writeSupportTickets(s);
+      }
+    } catch { /* relay is best-effort */ }
+  }
+  res.json({ ticket: t });
+});
+app.post('/api/support/tickets/:id/messages', requireUser, async (req, res) => {
+  const s = await readSupportTickets();
+  const t = s.tickets.find((x) => x.id === clean(req.params.id, 40)) || null;
+  if (!t || (t.userId !== req.uid && !isOwner(req.user))) return res.status(404).json({ error: 'Ticket not found.' });
+  if (t.status !== 'open') return res.status(409).json({ error: 'This ticket is already closed.' });
+  const content = clean(req.body.content, 2000);
+  if (!content) return res.status(400).json({ error: 'Cannot send an empty message.' });
+  try {
+    await discordApi('POST', `/channels/${t.channelId}/messages`, { content: `**@${String(t.username || 'user').slice(0, 40)}**: ${content}` });
+  } catch (e) { return res.status(502).json({ error: 'Could not reach the Discord ticket: ' + (e.message || 'unknown error') }); }
+  const message = { id: id('tm'), kind: 'user', author: t.name || t.username, content, createdAt: new Date().toISOString() };
+  t.messages.push(message);
+  await writeSupportTickets(s);
+  res.json({ message });
+});
+app.post('/api/support/tickets/:id/close', requireUser, async (req, res) => {
+  const s = await readSupportTickets();
+  const t = s.tickets.find((x) => x.id === clean(req.params.id, 40)) || null;
+  if (!t || (t.userId !== req.uid && !isOwner(req.user))) return res.status(404).json({ error: 'Ticket not found.' });
+  if (t.status === 'closed') return res.json({ ticket: t });
+  if (SUPPORT_ENABLED) {
+    try {
+      await discordApi('PATCH', `/channels/${t.channelId}`, { name: `closed-ticket-${t.number}`, locked: true });
+    } catch { /* rename is best-effort */ }
+  }
+  t.status = 'closed';
+  t.closedAt = new Date().toISOString();
+  t.messages.push({ id: id('tm'), kind: 'system', author: 'NexChat', content: `Ticket #${t.number} closed by @${String(req.user.username || req.user.name).slice(0, 40)}.`, createdAt: t.closedAt });
+  await writeSupportTickets(s);
+  res.json({ ticket: t });
+});
 app.post('/api/presence', requireUser, async (req, res) => { await markOnline(req.uid); await trackConnection(req, req.uid); res.json({ ok: true }); });
 app.post('/api/typing', requireUser, async (req, res) => {
   const c = conversations.find((x) => x.id === clean(req.body.conversationId, 40) && x.members.includes(req.uid));
@@ -1031,8 +1175,16 @@ app.get('/uploads/*', async (req, res) => {
 });
 
 app.use((req, res, next) => { if (req.method === 'GET' && !req.path.startsWith('/api') && !/\.\w{1,5}$/.test(req.path)) recordVisit(req).catch(() => {}); next(); });
+/* ---------- landing page at /, app shell at /app ---------- */
+app.get('/', (req, res, next) => {
+  if (req.query && req.query.code) {
+    const qs = req.originalUrl.indexOf('?') >= 0 ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    return res.redirect('/auth/callback' + qs);
+  }
+  next();
+});
 app.use(express.static(PUBLIC, { setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=300') }));
-app.get('*', async (req, res) => { res.sendFile(path.join(PUBLIC, 'index.html')); });
+app.get('*', async (req, res) => { res.sendFile(path.join(PUBLIC, 'app', 'index.html')); });
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;

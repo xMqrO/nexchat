@@ -7,6 +7,7 @@
     ['notifications', 'Notifications', '\uD83D\uDD14', 'Sounds and alerts'],
     ['privacy', 'Privacy & Security', '\uD83D\uDD12', 'Reads, typing and password'],
     ['chat', 'Chat & Messaging', '\uD83D\uDCAC', 'Sending, media and history'],
+    ['support', 'Support', '\uD83C\uDFA7', 'Tickets and Discord help'],
     ['manage', 'Account Management', '\uD83D\uDEE1\uFE0F', 'Email, export and danger zone']
   ];
   var current = 'account';
@@ -413,6 +414,41 @@
     };
   }
 
+  /* ---------- Support ---------- */
+  function renderSupport(body) {
+    body.appendChild(el('p', 'set-lead', 'Stuck on something? Open a support ticket and chat with the team — replies appear right here and in our Discord server.'));
+    var zone = el('div', 'support-zone');
+    zone.innerHTML = '<div class="set-note">Loading support…</div>';
+    body.appendChild(zone);
+    api('/api/support/config').then(function (cfg) {
+      return Promise.all([cfg, api('/api/support/tickets').catch(function () { return { open: null, tickets: [] }; })]);
+    }).then(function (r) {
+      var cfg = r[0], t = r[1] || { open: null, tickets: [] };
+      var open = t.open || null;
+      var html = '';
+      if (!cfg || !cfg.enabled) {
+        html += '<div class="set-note">Support tickets are not available yet. You can still join our Discord server below.</div>';
+      } else if (open) {
+        html += '<div class="set-note"><b>Open ticket #' + open.number + '</b> — ' + (open.lastMessage ? 'last activity: “' + escapeHTML(String(open.lastMessage.content || '').slice(0, 60)) + '”' : 'waiting for your first message') + '.</div>';
+      }
+      zone.innerHTML = html;
+      var acts = el('div', 'set-actions');
+      if (cfg && cfg.enabled) {
+        var openBtn = el('button', 'primary', open ? 'Continue ticket #' + open.number : 'Open a support ticket');
+        openBtn.onclick = function () { if (window.NCSupport && window.NCSupport.openTicket) window.NCSupport.openTicket(); };
+        acts.appendChild(openBtn);
+      }
+      if (cfg && cfg.invite) {
+        var dn = el('button', 'secondary', '\uD83D\uDCAC Join Discord server');
+        dn.onclick = function () { window.open(cfg.invite, '_blank', 'noopener'); };
+        acts.appendChild(dn);
+      }
+      zone.appendChild(acts);
+    }, function () {
+      zone.innerHTML = '<div class="set-note">Support is unavailable right now.</div>';
+    });
+  }
+
   /* ---------- shell ---------- */
   function build() {
     root = el('div', 'settings-root');
@@ -451,7 +487,7 @@
     var sp = el('div', 'spacer');
     navEl.appendChild(sp);
   }
-  var RENDER = { account: renderAccount, appearance: renderAppearance, notifications: renderNotifications, privacy: renderPrivacy, chat: renderChat, manage: renderManage };
+  var RENDER = { account: renderAccount, appearance: renderAppearance, notifications: renderNotifications, privacy: renderPrivacy, chat: renderChat, support: renderSupport, manage: renderManage };
   function renderBody() {
     var c = catOf(current);
     titleEl.textContent = c[1];
