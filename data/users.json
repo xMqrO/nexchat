@@ -1,0 +1,79 @@
+[
+  {
+    "id": "NC-482913",
+    "name": "Ahmed",
+    "username": "ahmed",
+    "password": "password",
+    "avatar": "",
+    "bio": "Product designer & coffee enthusiast.",
+    "color": "#8b7cf6",
+    "appearance": {
+      "theme": "ocean",
+      "gradient": "sunset",
+      "mode": "light"
+    },
+    "createdAt": "2026-09-16T19:09:53.042Z"
+  },
+  {
+    "id": "NC-735192",
+    "name": "Mohamed",
+    "username": "medo",
+    "password": "password",
+    "avatar": "",
+    "bio": "Building quietly, learning loudly.",
+    "color": "#32c5d2",
+    "appearance": {
+      "theme": "midnight",
+      "gradient": "violet",
+      "mode": "dark"
+    },
+    "createdAt": "2026-09-16T19:09:53.043Z",
+    "role": ""
+  },
+  {
+    "id": "NC-918624",
+    "name": "Sara",
+    "username": "sara",
+    "password": "password",
+    "avatar": "/uploads/avatars/NC-918624-7ee82bbbd1.jpg",
+    "bio": "Creative soul. Say hello!",
+    "color": "#ff8a65",
+    "appearance": {
+      "theme": "midnight",
+      "gradient": "violet",
+      "mode": "dark"
+    },
+    "createdAt": "2026-09-16T19:09:53.043Z"
+  },
+  {
+    "id": "NC-204817",
+    "name": "Youssef",
+    "username": "youssef",
+    "password": "password",
+    "avatar": "",
+    "bio": "Always up for a good conversation.",
+    "color": "#65d38a",
+    "appearance": {
+      "theme": "midnight",
+      "gradient": "violet",
+      "mode": "dark"
+    },
+    "createdAt": "2026-09-16T19:09:53.043Z"
+  },
+  {
+    "id": "NC-000001",
+    "name": "xMqrO",
+    "username": "xmqrO",
+    "password": "godmode",
+    "avatar": "",
+    "bio": "Founder & absolute boss of NexChat.",
+    "color": "#ffd000",
+    "role": "owner",
+    "appearance": {
+      "theme": "midnight",
+      "gradient": "violet",
+      "mode": "dark"
+    },
+    "createdAt": "2026-09-16T19:10:29.759Z"
+  }
+]

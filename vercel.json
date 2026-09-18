@@ -1,4 +1,16 @@
 {
   "version": 2,
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "public/**"
+    }
+  },
+  "redirects": [
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "silk-line.vercel.app" }], "destination": "https://hookhq.vercel.app/$1", "permanent": false },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "knotwire.vercel.app" }], "destination": "https://hookhq.vercel.app/$1", "permanent": false },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "fetchtalk.vercel.app" }], "destination": "https://hookhq.vercel.app/$1", "permanent": false },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "nexchat-xmqro.vercel.app" }], "destination": "https://hookhq.vercel.app/$1", "permanent": false },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "nexchat-sooty-ten.vercel.app" }], "destination": "https://hookhq.vercel.app/$1", "permanent": false }
+  ],
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 }

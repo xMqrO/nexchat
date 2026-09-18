@@ -1,0 +1,76 @@
+{
+  "total": 11,
+  "today": 11,
+  "year": {
+    "2026-09-17": 11
+  },
+  "day": "2026-09-17",
+  "recent": [
+    {
+      "ip": "127.0.0.1",
+      "path": "/",
+      "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "at": 1789675000316
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/",
+      "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "at": 1789674985991
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "",
+      "at": 1789664649191
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "",
+      "at": 1789664649188
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "",
+      "at": 1789664649186
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "",
+      "at": 1789664649183
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "",
+      "at": 1789664649175
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "node",
+      "at": 1789664621947
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "node",
+      "at": 1789664621936
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "node",
+      "at": 1789664621932
+    },
+    {
+      "ip": "127.0.0.1",
+      "path": "/sara/message",
+      "ua": "node",
+      "at": 1789664621918
+    }
+  ]
+}

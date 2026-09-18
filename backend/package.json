@@ -1,0 +1,15 @@
+{
+  "name": "bot-controller-backend",
+  "version": "1.8.9",
+  "description": "Backend for the Bot Controller dashboard",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "mineflayer": "^4.21.1",
+    "socks": "^2.8.10",
+    "ws": "^8.18.0"
+  }
+}

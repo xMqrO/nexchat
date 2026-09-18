@@ -1,0 +1,359 @@
+[
+  {
+    "id": "msg_09ff428f6f",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "First message to quote",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:04.286Z"
+  },
+  {
+    "id": "msg_96d0380f5c",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "Replying back!",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:04.292Z",
+    "reply": {
+      "id": "msg_09ff428f6f",
+      "senderId": "NC-735192",
+      "name": "Mohamed",
+      "type": "text",
+      "preview": "First message to quote"
+    }
+  },
+  {
+    "id": "msg_a085882b8c",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:04.302Z",
+    "reply": {
+      "id": "msg_09ff428f6f",
+      "senderId": "NC-735192",
+      "name": "Mohamed",
+      "type": "text",
+      "preview": "First message to quote"
+    }
+  },
+  {
+    "id": "msg_4d541662de",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "image",
+    "content": "/uploads/messages/1789589944311-6a38f386.png",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:04.318Z"
+  },
+  {
+    "id": "msg_9dd6116c44",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "Photo reply",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:04.321Z",
+    "reply": {
+      "id": "msg_4d541662de",
+      "senderId": "NC-735192",
+      "name": "Mohamed",
+      "type": "image",
+      "preview": "/uploads/messages/1789589944311-6a38f386.png"
+    }
+  },
+  {
+    "id": "msg_e7d885d699",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "First message to quote",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:28.338Z"
+  },
+  {
+    "id": "msg_dcf1c97a94",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "Replying back!",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:28.343Z",
+    "reply": {
+      "id": "msg_e7d885d699",
+      "senderId": "NC-735192",
+      "name": "Mohamed",
+      "type": "text",
+      "preview": "First message to quote"
+    }
+  },
+  {
+    "id": "msg_8e3ca10dc8",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:28.355Z"
+  },
+  {
+    "id": "msg_41b2603fb1",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "reply to a long one",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:28.361Z",
+    "reply": {
+      "id": "msg_8e3ca10dc8",
+      "senderId": "NC-735192",
+      "name": "Mohamed",
+      "type": "text",
+      "preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  },
+  {
+    "id": "msg_8b26bb15d6",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "image",
+    "content": "/uploads/messages/1789589968372-c6996859.png",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:28.377Z"
+  },
+  {
+    "id": "msg_7d5690940b",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "Photo reply",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:19:28.382Z",
+    "reply": {
+      "id": "msg_8b26bb15d6",
+      "senderId": "NC-735192",
+      "name": "Mohamed",
+      "type": "image",
+      "preview": "/uploads/messages/1789589968372-c6996859.png"
+    }
+  },
+  {
+    "id": "msg_c508908dd8",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "message by sara",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:43:17.736Z"
+  },
+  {
+    "id": "msg_db722ecc00",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "image",
+    "content": "/uploads/messages/1789591397760-8abf9716.png",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:43:17.773Z"
+  },
+  {
+    "id": "msg_f411d6eb7b",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "forward this secret",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:43:17.818Z"
+  },
+  {
+    "id": "msg_42b7c1d021",
+    "conversationId": "conv_f6f91ef3c1",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "forward this secret",
+    "status": "sent",
+    "createdAt": "2026-09-16T20:43:17.834Z",
+    "forwarded": true
+  },
+  {
+    "id": "msg_34663a4c16",
+    "conversationId": "conv_f6f91ef3c1",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "not forwarded",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:43:17.882Z"
+  },
+  {
+    "id": "msg_ff70ab712f",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "badged owner edit",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:55:53.208Z",
+    "edited": true,
+    "editedAt": "2026-09-16T20:55:53.264Z"
+  },
+  {
+    "id": "msg_38ed711a41",
+    "conversationId": "conv_c24ec46e07",
+    "senderId": "NC-000001",
+    "type": "text",
+    "content": "owner here",
+    "status": "read",
+    "createdAt": "2026-09-16T20:55:53.220Z"
+  },
+  {
+    "id": "msg_7d49d2e312",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "badged owner edit",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:56:40.693Z",
+    "edited": true,
+    "editedAt": "2026-09-16T20:56:40.914Z"
+  },
+  {
+    "id": "msg_8d7da77f1d",
+    "conversationId": "conv_c24ec46e07",
+    "senderId": "NC-000001",
+    "type": "text",
+    "content": "owner here",
+    "status": "read",
+    "createdAt": "2026-09-16T20:56:40.725Z"
+  },
+  {
+    "id": "msg_274666c275",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "message by sara",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:56:41.122Z"
+  },
+  {
+    "id": "msg_048c79b51e",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "image",
+    "content": "/uploads/messages/1789592201154-e962ec48.png",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:56:41.168Z"
+  },
+  {
+    "id": "msg_362be5e1de",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "forward this secret",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:56:41.247Z"
+  },
+  {
+    "id": "msg_3f85b04d2c",
+    "conversationId": "conv_f6f91ef3c1",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "forward this secret",
+    "status": "sent",
+    "createdAt": "2026-09-16T20:56:41.263Z",
+    "forwarded": true
+  },
+  {
+    "id": "msg_61912fa985",
+    "conversationId": "conv_f6f91ef3c1",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "not forwarded",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:56:41.310Z"
+  },
+  {
+    "id": "msg_03439723db",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "badged owner edit",
+    "status": "delivered",
+    "createdAt": "2026-09-16T20:58:40.210Z",
+    "edited": true,
+    "editedAt": "2026-09-16T20:58:40.269Z"
+  },
+  {
+    "id": "msg_8833dee4b4",
+    "conversationId": "conv_c24ec46e07",
+    "senderId": "NC-000001",
+    "type": "text",
+    "content": "owner here",
+    "status": "read",
+    "createdAt": "2026-09-16T20:58:40.223Z"
+  },
+  {
+    "id": "msg_a92cafc5a9",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-918624",
+    "type": "text",
+    "content": "message by sara",
+    "status": "delivered",
+    "createdAt": "2026-09-16T21:31:46.756Z"
+  },
+  {
+    "id": "msg_c9f32b496a",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "image",
+    "content": "/uploads/messages/1789594306766-00941ec9.png",
+    "status": "delivered",
+    "createdAt": "2026-09-16T21:31:46.770Z"
+  },
+  {
+    "id": "msg_0ea0b81d95",
+    "conversationId": "conv_65b13a1cd4",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "forward this secret",
+    "status": "delivered",
+    "createdAt": "2026-09-16T21:31:46.806Z"
+  },
+  {
+    "id": "msg_5a38253e6b",
+    "conversationId": "conv_f6f91ef3c1",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "forward this secret",
+    "status": "sent",
+    "createdAt": "2026-09-16T21:31:46.809Z",
+    "forwarded": true
+  },
+  {
+    "id": "msg_ac0a5f1dd8",
+    "conversationId": "conv_f6f91ef3c1",
+    "senderId": "NC-735192",
+    "type": "text",
+    "content": "not forwarded",
+    "status": "delivered",
+    "createdAt": "2026-09-16T21:31:46.820Z"
+  },
+  {
+    "id": "msg_7f47247cc6",
+    "conversationId": "conv_c24ec46e07",
+    "senderId": "NC-918624",
+    "type": "video",
+    "content": "/uploads/messages/1789597264330-f8c5f8ac.mp4",
+    "status": "read",
+    "createdAt": "2026-09-16T22:21:04.349Z"
+  },
+  {
+    "id": "msg_8b8846620f",
+    "conversationId": "conv_c24ec46e07",
+    "senderId": "NC-204817",
+    "type": "text",
+    "content": "receipt-test reply 1789663170201",
+    "status": "read",
+    "createdAt": "2026-09-17T16:39:30.201Z"
+  }
+]

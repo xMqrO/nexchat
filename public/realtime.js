@@ -8,8 +8,13 @@
     lastSeenTs: new Map(),
     statuses: new Map(),
     seenOnline: new Map(),
+    seenAvatars: new Map(),
     seenTyping: new Map(),
     lastOtherOf: new Map(),
+    sigs: new Map(),
+    presentMsgs: new Map(),
+    readPtr: new Map(),
+    presenceOn: true,
     iter: 0
   };
 
@@ -48,27 +53,47 @@
   async function pollMessages() {
     const conv = state.activeConv;
     if (!conv) return;
-    state.iter = (state.iter + 1) % 12;
+    state.iter = (state.iter + 1) % 6;
     const isFull = state.iter === 0;
     const knownTs = state.lastSeenTs.has(conv) ? state.lastSeenTs.get(conv) : null;
     const since = isFull ? null : knownTs;
     const q = since ? '?laterThan=' + encodeURIComponent(since) : '';
     const d = await api('/api/messages/' + conv + q);
     const otherId = (d.members && state.ownId) ? (d.members[0] === state.ownId ? d.members[1] : d.members[0]) : null;
+    const rd = (d.read && typeof d.read === 'object') ? d.read : {};
+    if (otherId) {
+      const ptr = rd[otherId] || null;
+      const had = state.readPtr.has(conv);
+      const prevPtr = state.readPtr.get(conv);
+      state.readPtr.set(conv, ptr);
+      if (had && ptr && ptr !== prevPtr) dispatch('read', { conversationId: conv, userId: otherId, messageId: ptr });
+    }
     let lastCreated = null;
     for (const m of d.messages) {
+      const sig = (m.content || '') + '|' + (m.type || '') + '|' + (m.forwarded ? 1 : 0) + '|' + (m.edited ? 1 : 0) + '|' + ((m.reply && m.reply.id) || '');
+      const prevSig = state.sigs.get(m.id);
+      state.sigs.set(m.id, sig);
+      if (prevSig && prevSig !== sig) dispatch('message:edited', m);
       const isNew = !state.seenMsgs.has(m.id);
       state.seenMsgs.add(m.id);
       if (m.createdAt) { lastCreated = m.createdAt; }
       if (isNew && (since || isFull)) dispatch('message', m);
       if (m.senderId === state.ownId && otherId) {
         const prev = state.statuses.get(m.id);
-        if (prev && prev !== m.status) {
-          if (m.status === 'read') dispatch('read', { conversationId: m.conversationId, userId: otherId });
-          else if (m.status === 'delivered') dispatch('delivered', { conversationId: m.conversationId, messageId: m.id });
-        }
+        if (prev && prev !== m.status && m.status === 'delivered') dispatch('delivered', { conversationId: m.conversationId, messageId: m.id });
         state.statuses.set(m.id, m.status);
       }
+    }
+    if (isFull) {
+      const present = new Set();
+      for (const m of d.messages) present.add(m.id);
+      const prev = state.presentMsgs.get(conv);
+      if (prev) {
+        for (const id of prev) {
+          if (!present.has(id)) dispatch('message:deleted', { conversationId: conv, messageId: id });
+        }
+      }
+      state.presentMsgs.set(conv, present);
     }
     if (lastCreated) {
       const prevTs = state.lastSeenTs.get(conv);
@@ -84,6 +109,10 @@
       const online = !!other.online;
       if (state.seenOnline.has(other.id) && state.seenOnline.get(other.id) !== online) dispatch('presence', { userId: other.id, online });
       state.seenOnline.set(other.id, online);
+
+      const av = other.avatar || '';
+      if (state.seenAvatars.has(other.id) && state.seenAvatars.get(other.id) !== av) dispatch('avatar', { userId: other.id, avatar: av });
+      state.seenAvatars.set(other.id, av);
 
       const t = c.typing;
       let key = null;
@@ -129,10 +158,10 @@
 
   function createRealtime() {
     api('/api/me').then((d) => { state.ownId = d.user ? d.user.id : null; }).catch(() => {});
-    setInterval(() => api('/api/presence', { method: 'POST', body: {} }).catch(() => {}), 25000);
+    setInterval(() => { if (state.presenceOn !== false) api('/api/presence', { method: 'POST', body: {} }).catch(() => {}); }, 25000);
     setInterval(pollTyping, 700);
     loop();
-    return { on, emit };
+    return { on, emit, setPresenceEnabled: (v) => { state.presenceOn = v !== false; } };
   }
 
   global.io = createRealtime;

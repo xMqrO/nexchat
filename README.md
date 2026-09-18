@@ -69,7 +69,7 @@ Any Node host works: a VPS, Railway, Render, or Fly. Most set `PORT` automatical
 2. **APIs & Services → OAuth consent screen** → configure (External, app name "NexChat", support email). Add the test users who will sign in while the app is in "Testing" mode.
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID** → Application type **Web application**.
 4. Under **Authorized redirect URIs** add (use your own site domain):
-   - `https://nexchat-live2026.vercel.app/auth/callback`
+   - `https://hookhq.vercel.app/auth/callback`
 5. Copy the **Client ID** and **Client secret**.
 
 ### 2. Supabase
@@ -77,8 +77,8 @@ Any Node host works: a VPS, Railway, Render, or Fly. Most set `PORT` automatical
 1. Create a project at https://supabase.com (Postgres) → **Authentication → Providers → Google**.
 2. Enable it and paste the **Google Client ID** and **Client secret** from step 1.
 3. Under **Authentication → URL Configuration → Redirect URLs** add the same callback URL, with a wildcard so Supabase can append OAuth params:
-   - `https://nexchat-live2026.vercel.app/auth/callback`
-   - `https://nexchat-live2026.vercel.app/**`
+   - `https://hookhq.vercel.app/auth/callback`
+   - `https://hookhq.vercel.app/**`
 4. Copy **Project URL** (e.g. `https://abcdefgh.supabase.co`) and the **anon public** key from **Settings → API**.
 
 ### 3. Set environment variables

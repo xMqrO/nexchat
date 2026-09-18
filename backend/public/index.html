@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot Controller</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #050507;
+    --surface: rgba(255,255,255,0.04);
+    --surface-hover: rgba(255,255,255,0.07);
+    --border: rgba(255,255,255,0.08);
+    --border-light: rgba(255,255,255,0.05);
+    
+    --green: #30D158;
+    --green-glow: rgba(48,209,88,0.12);
+    --red: #FF453A;
+    --red-glow: rgba(255,69,58,0.12);
+    --yellow: #FFD60A;
+    --yellow-glow: rgba(255,214,10,0.1);
+    --cyan: #64D2FF;
+    --cyan-glow: rgba(100,210,255,0.12);
+    --purple: #BF5AF2;
+    --orange: #FF9F0A;
+    
+    --text: rgba(255,255,255,0.92);
+    --text-dim: rgba(255,255,255,0.55);
+    --text-muted: rgba(255,255,255,0.30);
+    
+    --mono: 'JetBrains Mono', 'Consolas', monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur: 0.25s;
+
+    --sidebar-w: 280px;
+    --log-h: 220px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: 60px;
+  }
+
+  .ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .ambient-glow { position: absolute; border-radius: 50%; filter: blur(120px); will-change: transform; transition: transform 0.6s var(--ease); }
+  .ambient-glow.g1 { top: -15%; left: -8%; width: 45vw; height: 45vw; background: rgba(48,209,88,0.05); }
+  .ambient-glow.g2 { bottom: -12%; right: -6%; width: 40vw; height: 40vw; background: rgba(100,210,255,0.04); }
+  .ambient-glow.g3 { top: 40%; left: 35%; width: 30vw; height: 30vw; background: rgba(191,90,242,0.03); }
+  body::before { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.015) 1px, transparent 0); background-size: 24px 24px; }
+
+  header {
+    position: fixed; top: 10px; left: 14px; right: 14px; z-index: 100; height: 46px;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+    background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(60px) saturate(200%) brightness(1.1);
+    -webkit-backdrop-filter: blur(60px) saturate(200%) brightness(1.1);
+    border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 18px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.18), inset 0 -1px 1px rgba(0,0,0,0.5);
+    overflow: hidden;
+  }
+  header::before { content: ''; position: absolute; top: 0; left: 10%; right: 10%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); pointer-events: none; }
+  header::after { content: ''; position: absolute; top: 1px; left: 15%; right: 15%; height: 40%; background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent); pointer-events: none; border-radius: 0 0 50% 50%; }
+
+  .logo { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+  .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--green), var(--cyan)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; font-weight: 700; color: #000; box-shadow: 0 0 16px rgba(48,209,88,0.4), 0 4px 8px rgba(0,0,0,0.4); }
+  .logo-text { font-family: var(--mono); font-weight: 600; font-size: 14px; letter-spacing: 0.3px; }
+  .logo-sub { font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border-light); border-radius: 6px; padding: 3px 8px; }
+
+  .header-tabs { display: flex; gap: 4px; background: rgba(255,255,255,0.04); padding: 3px; border-radius: 10px; border: 1px solid var(--border-light); position: relative; z-index: 1; }
+  .tab-btn { font-family: var(--mono); font-size: 11px; color: var(--text-dim); padding: 6px 16px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; font-weight: 500; transition: all var(--dur) var(--ease); }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: #000; background: var(--green); border-color: var(--green); box-shadow: 0 0 12px rgba(48,209,88,0.4), inset 0 1px 1px rgba(255,255,255,0.4); }
+
+  #ws-status { font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface); transition: all 0.35s var(--ease); position: relative; z-index: 1; }
+  .dot-pulse { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; transition: all 0.35s var(--ease); }
+  #ws-status.connected { color: var(--green); border-color: rgba(48,209,88,0.3); background: var(--green-glow); }
+  #ws-status.connected .dot-pulse { background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulseGlow 2s infinite; }
+  #ws-status.disconnected { color: var(--red); border-color: rgba(255,69,58,0.3); background: var(--red-glow); }
+  #ws-status.disconnected .dot-pulse { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  @keyframes pulseGlow { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
+
+  .tab-page { display: none; flex: 1; overflow: hidden; position: relative; z-index: 1; }
+  .tab-page.active { display: flex; animation: tabPop 0.3s var(--ease); }
+  @keyframes tabPop { 0% { opacity: 0; transform: translateY(5px); } 100% { opacity: 1; transform: translateY(0); } }
+
+  .layout { display: grid; grid-template-columns: 1fr var(--sidebar-w); grid-template-rows: 1fr var(--log-h); flex: 1; overflow: hidden; position: relative; }
+
+  .resizer { position: absolute; z-index: 20; background: transparent; transition: background 0.2s, box-shadow 0.2s; }
+  .resizer:hover, .resizer.dragging { background: var(--green); opacity: 0.5; box-shadow: 0 0 10px var(--green); }
+  .resizer-col { top: 0; bottom: 0; width: 6px; cursor: col-resize; right: calc(var(--sidebar-w) - 3px); }
+  .resizer-row { left: 0; right: var(--sidebar-w); height: 6px; cursor: row-resize; bottom: calc(var(--log-h) - 3px); }
+
+  .panel { border-right: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); display: flex; flex-direction: column; overflow: hidden; background: rgba(10, 10, 12, 0.5); backdrop-filter: blur(20px); }
+  .panel-header { padding: 0 16px; height: 40px; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid var(--border-light); background: rgba(255,255,255,0.02); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
+  .panel-header-left { display: flex; align-items: center; gap: 10px; }
+  .panel-badge { background: var(--surface); border: 1px solid var(--border-light); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: var(--text); }
+  .panel-body { flex: 1; overflow: auto; padding: 14px 16px; }
+
+  #bots-panel { grid-column: 1; grid-row: 1; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; padding: 0 12px 12px 0; color: var(--text-muted); font-family: var(--mono); font-weight: 500; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-light); position: sticky; top: 0; background: transparent; }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s ease; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  td { padding: 10px 12px 10px 0; vertical-align: middle; }
+  td.name { color: var(--text); font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  td.host { color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-family: var(--mono); font-size: 10px; font-weight: 600; text-transform: capitalize; }
+  .badge::before { content:''; width:6px; height:6px; border-radius:50%; }
+  .badge-online, .badge-active { background: var(--green-glow); color: var(--green); border: 1px solid rgba(48,209,88,0.2); }
+  .badge-online::before, .badge-active::before { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .badge-connecting { background: var(--yellow-glow); color: var(--yellow); border: 1px solid rgba(255,214,10,0.2); }
+  .badge-connecting::before { background: var(--yellow); }
+  .badge-disconnected, .badge-error, .badge-kicked, .badge-failed { background: var(--red-glow); color: var(--red); border: 1px solid rgba(255,69,58,0.2); }
+  .badge-disconnected::before, .badge-error::before, .badge-kicked::before, .badge-failed::before { background: var(--red); }
+  .badge-inactive { background: var(--surface); color: var(--text-dim); border: 1px solid var(--border-light); }
+  .badge-inactive::before { background: var(--text-muted); }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot-on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot-off { background: rgba(255,255,255,0.1); }
+  .primary-star { color: var(--yellow); margin-left: 6px; font-size: 12px; filter: drop-shadow(0 0 4px rgba(255,214,10,0.6)); }
+  .star-btn { color: var(--text-muted); cursor: pointer; margin-left: 6px; font-size: 12px; transition: color 0.2s; }
+  .star-btn:hover { color: var(--yellow); }
+
+  .row-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+  .btn-xs { padding: 4px 10px; font-size: 10px; font-family: var(--mono); font-weight: 500; border-radius: 6px; border: 1px solid var(--border-light); background: var(--surface); color: var(--text-dim); cursor: pointer; transition: all 0.2s var(--ease); white-space: nowrap; }
+  .btn-xs:hover { border-color: var(--green); color: var(--green); background: var(--green-glow); transform: translateY(-1px); }
+  .btn-xs:active { transform: translateY(0); }
+  .btn-xs.danger:hover { border-color: var(--red); color: var(--red); background: var(--red-glow); }
+  .btn-xs.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-glow); box-shadow: 0 0 10px rgba(100,210,255,0.1); }
+  .btn-xs.warn:hover { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-glow); }
+
+  .config-row { 
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 14px; 
+    background: rgba(0, 0, 0, 0.7); 
+    backdrop-filter: blur(30px) saturate(180%); 
+    -webkit-backdrop-filter: blur(30px) saturate(180%); 
+    border: 0.5px solid rgba(255, 255, 255, 0.1); 
+    border-radius: 16px; 
+    margin-bottom: 16px; 
+    align-items: center; 
+    box-shadow: 
+      0 12px 40px rgba(0,0,0,0.7), 
+      inset 0 1px 0.5px rgba(255,255,255,0.15), 
+      inset 0 -1px 1px rgba(0,0,0,0.5);
+    transition: all 0.3s var(--ease);
+  }
+  .config-row:hover {
+    border-color: rgba(255,255,255,0.18);
+    background: rgba(0, 0, 0, 0.65);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.8), inset 0 1px 0.5px rgba(255,255,255,0.2);
+  }
+  .config-row span { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-right: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .config-row input { 
+    background: rgba(255,255,255,0.05); 
+    border: 1px solid rgba(255,255,255,0.08); 
+    color: var(--text); padding: 8px 14px; border-radius: 10px; 
+    font-family: var(--mono); font-size: 12px; outline: none; min-width: 0; 
+    transition: all 0.2s var(--ease); 
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .config-row input:focus { 
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(48,209,88,0.4); 
+    box-shadow: 0 0 0 3px var(--green-glow), inset 0 1px 2px rgba(0,0,0,0.2); 
+  }
+  .config-row input::placeholder { color: var(--text-muted); }
+  .config-row select { 
+    width: auto; padding: 8px 30px 8px 14px; 
+    background: rgba(255,255,255,0.05); 
+    border: 1px solid rgba(255,255,255,0.08); 
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .config-row select:focus {
+    border-color: rgba(48,209,88,0.4); 
+    box-shadow: 0 0 0 3px var(--green-glow), inset 0 1px 2px rgba(0,0,0,0.2);
+  }
+
+  #sidebar { grid-column: 2; grid-row: 1 / 3; border-right: none; border-left: 1px solid var(--border-light); display: flex; flex-direction: column; overflow: hidden; }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .stat-item { display: flex; flex-direction: column; align-items: center; padding: 12px 4px; background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px; gap: 6px; transition: all 0.2s var(--ease); }
+  .stat-item:hover { background: var(--surface-hover); transform: translateY(-1px); }
+  .stat-val { font-family: var(--mono); font-weight: 700; font-size: 20px; line-height: 1; color: var(--text); }
+  .stat-val.green { color: var(--green); text-shadow: 0 0 10px rgba(48,209,88,0.4); }
+  .stat-val.red { color: var(--red); text-shadow: 0 0 10px rgba(255,69,58,0.4); }
+  .stat-val.cyan { color: var(--cyan); text-shadow: 0 0 10px rgba(100,210,255,0.4); }
+  .stat-val.orange { color: var(--orange); text-shadow: 0 0 10px rgba(255,159,10,0.4); }
+  .stat-label { font-family: var(--sans); font-size: 9px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .section-title { font-family: var(--mono); font-size: 10px; color: var(--text-muted); font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; margin: 18px 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; gap: 8px; }
+  .section-title::before { content:''; width:3px; height:12px; background: var(--green); border-radius:2px; box-shadow: 0 0 8px var(--green); }
+
+  .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .btn { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-light); background: var(--surface); color: var(--text); cursor: pointer; font-family: var(--mono); font-size: 11px; font-weight: 500; text-align: center; transition: all 0.2s var(--ease); white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .btn:hover { border-color: var(--green); color: var(--green); background: var(--green-glow); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  .btn:active { transform: translateY(0); }
+  .btn.full { grid-column: 1 / -1; }
+  .btn.danger:hover { border-color: var(--red); color: var(--red); background: var(--red-glow); }
+  .btn.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-glow); }
+  .btn.warn:hover { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-glow); }
+
+  input, select, textarea { background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); color: var(--text); padding: 8px 12px; border-radius: 10px; font-family: var(--mono); font-size: 12px; outline: none; transition: all 0.2s var(--ease); width: 100%; }
+  input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-glow); background: rgba(0,0,0,0.5); }
+  input::placeholder, textarea::placeholder { color: var(--text-muted); }
+  select { -webkit-appearance: none; appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 10px; padding-right: 30px; }
+  select option { background: #111; color: var(--text); }
+
+  .chat-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .chat-row select { width: 100px; flex-shrink: 0; }
+  .chat-row input { flex: 1; min-width: 0; }
+  .chat-row .btn { flex-shrink: 0; padding: 8px 14px; }
+
+  .slot-grid { display: grid; grid-template-columns: repeat(9,1fr); gap: 4px; margin-top: 8px; }
+  .slot-btn { aspect-ratio:1; border-radius: 8px; border: 1px solid var(--border-light); background: var(--surface); color: var(--text-muted); cursor: pointer; font-family: var(--mono); font-size: 11px; font-weight: 600; transition: all 0.2s var(--ease); }
+  .slot-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-glow); }
+  .slot-btn.active { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-glow); box-shadow: 0 0 10px rgba(100,210,255,0.2); }
+
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
+  .dpad-spacer { visibility: hidden; }
+  .dpad-btn { padding: 12px 4px; border-radius: 10px; border: 1px solid var(--border-light); background: var(--surface); color: var(--text); cursor: pointer; font-family: var(--mono); font-size: 14px; font-weight: 600; transition: all 0.15s var(--ease); }
+  .dpad-btn:hover { background: var(--cyan-glow); border-color: var(--cyan); color: var(--cyan); }
+  .dpad-btn:active { transform: scale(0.95); background: var(--cyan); color: #000; }
+  .dpad-back { color: var(--text); }
+
+  .input-mini { width: 60px !important; text-align: center; padding: 6px !important; }
+  .mini-input-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+
+  .primary-display { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--cyan-glow); border: 1px solid rgba(100,210,255,0.2); border-radius: 10px; margin-top: 8px; }
+  .primary-display .dot-c { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+  .primary-display span { font-family: var(--mono); font-size: 13px; color: var(--cyan); font-weight: 600; }
+  .primary-hint { font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--sans); }
+
+  #log-panel { grid-column: 1; grid-row: 2; border-bottom: none; }
+  #log-body { display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: 11.5px; }
+  .log-line { display: flex; gap: 12px; padding: 4px 8px; border-radius: 6px; transition: background 0.15s ease; animation: logIn 0.3s var(--ease); }
+  @keyframes logIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+  .log-line:hover { background: rgba(255,255,255,0.03); }
+  .log-time { color: var(--text-muted); flex-shrink: 0; font-size: 10px; padding-top: 1px; min-width: 70px; }
+  .log-tag { width: 45px; flex-shrink: 0; font-weight: 700; font-size: 10px; padding-top: 1px; letter-spacing: 0.5px; }
+  .log-text { color: var(--text-dim); word-break: break-all; line-height: 1.5; }
+  .tag-info { color: var(--cyan); }
+  .tag-success { color: var(--green); }
+  .tag-warn { color: var(--yellow); }
+  .tag-error { color: var(--red); }
+  .tag-chat { color: #818cf8; }
+  .tag-bot { color: var(--purple); }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 100px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+  .empty { color: var(--text-muted); font-family: var(--mono); font-size: 12px; padding: 40px 0; text-align: center; }
+
+  #proxy-tab { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+  #proxy-tab.active { display: flex; }
+  .proxy-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1; overflow: hidden; }
+  .proxy-main { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border-light); background: rgba(10, 10, 12, 0.5); }
+  .proxy-summary { display: flex; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border-light); flex-shrink: 0; }
+  .proxy-stat { display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px; padding: 10px 16px; }
+  .proxy-stat-val { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); }
+  .proxy-stat-label { font-family: var(--sans); font-size: 9px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .proxy-stat-val.green { color: var(--green); text-shadow: 0 0 10px rgba(48,209,88,0.4); }
+  .proxy-stat-val.red { color: var(--red); text-shadow: 0 0 10px rgba(255,69,58,0.4); }
+  .proxy-stat-val.cyan { color: var(--cyan); text-shadow: 0 0 10px rgba(100,210,255,0.4); }
+  .proxy-stat-val.orange { color: var(--orange); text-shadow: 0 0 10px rgba(255,159,10,0.4); }
+
+  .proxy-table-wrap { flex: 1; overflow: auto; padding: 14px 16px; position: relative; }
+  .proxy-table { width: 100%; border-collapse: collapse; }
+  .proxy-table thead th { text-align: left; padding: 0 12px 12px 0; color: var(--text-muted); font-family: var(--mono); font-weight: 500; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-light); position: sticky; top: 0; background: rgba(15, 15, 20, 0.95); backdrop-filter: blur(10px); z-index: 2; }
+  .proxy-table tbody tr { border-bottom: 1px solid rgba(255,255,255,0.03); transition: all 0.2s var(--ease); }
+  .proxy-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+  .proxy-table td { padding: 10px 12px 10px 0; vertical-align: middle; font-family: var(--mono); font-size: 12px; }
+  .proxy-table td.p-type { color: var(--cyan); font-size: 10px; font-weight: 600; width: 60px; }
+  .proxy-table td.p-host { color: var(--text); font-weight: 500; }
+  .proxy-table td.p-auth { color: var(--text-muted); font-size: 10px; }
+  .proxy-table td.p-bots { color: var(--text-dim); font-size: 11px; text-align: center; width: 60px; font-weight: 600; }
+
+  .proxy-sidebar { display: flex; flex-direction: column; overflow: auto; padding: 16px; gap: 0; background: rgba(10, 10, 12, 0.5); }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .form-label { font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; }
+  .form-textarea { min-height: 100px; resize: vertical; }
+
+  .bpp-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  .bpp-label { font-family: var(--mono); font-size: 11px; color: var(--text-dim); flex: 1; }
+  .bpp-val { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--cyan); min-width: 30px; text-align: center; text-shadow: 0 0 10px rgba(100,210,255,0.4); }
+
+  .capacity-bar-wrap { height: 6px; border-radius: 100px; background: var(--surface); border: 1px solid var(--border-light); overflow: hidden; margin-bottom: 10px; }
+  .capacity-bar-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--green), var(--cyan)); transition: width 0.4s var(--ease); box-shadow: 0 0 10px rgba(48,209,88,0.4); }
+  .capacity-hint { font-size: 10px; color: var(--text-muted); margin-bottom: 12px; font-family: var(--mono); }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true">
+  <div class="ambient-glow g1"></div>
+  <div class="ambient-glow g2"></div>
+  <div class="ambient-glow g3"></div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">BC</div>
+    <span class="logo-text">Bot Controller</span>
+    <span class="logo-sub">v1.8.9 · mineflayer</span>
+  </div>
+  <div class="header-tabs">
+    <button class="tab-btn active" data-tab="bots">Bots</button>
+    <button class="tab-btn" data-tab="proxies">Proxies</button>
+  </div>
+  <div id="ws-status" class="disconnected">
+    <span class="dot-pulse"></span>
+    <span id="ws-label">Disconnected</span>
+  </div>
+</header>
+
+<div class="tab-page active" id="bots-tab">
+  <div class="layout" id="main-layout">
+    <div class="resizer resizer-col" id="resizer-col"></div>
+    <div class="resizer resizer-row" id="resizer-row"></div>
+    
+    <div class="panel" id="bots-panel">
+      <div class="panel-header">
+        <div class="panel-header-left">
+          <span>Bots</span>
+          <span class="panel-badge" id="bot-count">0</span>
+        </div>
+        <button class="btn-xs" onclick="loadBotsWithConfig()">↺ Load bots.txt</button>
+      </div>
+      <div class="panel-body">
+        <div class="config-row">
+          <span>Server:</span>
+          <input id="cfg-host" value="127.0.0.1" placeholder="host (e.g. 127.0.0.1)" style="flex:1; min-width:150px;">
+          <input id="cfg-port" value="25565" placeholder="port (e.g. 25565)" style="width:80px;">
+          <select id="cfg-version" style="width:100px;">
+            <option value="1.8.9">1.8.9</option>
+            <option value="1.12.2">1.12.2</option>
+            <option value="1.16.5">1.16.5</option>
+            <option value="1.18.2">1.18.2</option>
+            <option value="1.19.2">1.19.2</option>
+            <option value="1.20.4">1.20.4</option>
+          </select>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Host</th><th>Status</th><th>Spin</th><th>Sneak</th><th>Jump</th><th>Physics</th><th>Proxy</th><th>Actions</th></tr></thead>
+          <tbody id="bot-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div id="sidebar" class="panel">
+      <div class="panel-header">Controls</div>
+      <div class="panel-body">
+        <div class="stats-grid">
+          <div class="stat-item"><span class="stat-val" id="s-total">0</span><span class="stat-label">Total</span></div>
+          <div class="stat-item"><span class="stat-val green" id="s-online">0</span><span class="stat-label">Online</span></div>
+          <div class="stat-item"><span class="stat-val red" id="s-offline">0</span><span class="stat-label">Offline</span></div>
+          <div class="stat-item"><span class="stat-val cyan" id="s-spin">0</span><span class="stat-label">Spin</span></div>
+          <div class="stat-item"><span class="stat-val cyan" id="s-sneak">0</span><span class="stat-label">Sneak</span></div>
+          <div class="stat-item"><span class="stat-val cyan" id="s-jump">0</span><span class="stat-label">Jump</span></div>
+          <div class="stat-item" style="grid-column:1/-1;flex-direction:row;justify-content:space-between;padding:10px 14px;">
+            <span class="stat-label" style="font-size:10px;">Anti-AFK</span>
+            <span class="stat-val cyan" style="font-size:16px;" id="s-afk">0</span>
+          </div>
+        </div>
+        
+        <div class="section-title">All Bots</div>
+        <div class="action-grid">
+          <button class="btn" id="all-spin-btn" onclick="toggleAll('spin')">▶ Spin</button>
+          <button class="btn" id="all-sneak-btn" onclick="toggleAll('sneak')">⬇ Sneak</button>
+          <button class="btn" id="all-jump-btn" onclick="toggleAll('jump')">↑ Jump</button>
+          <button class="btn" id="all-physics-btn" onclick="toggleAll('physics')">⚙ Physics</button>
+          <button class="btn full" id="all-afk-btn" onclick="toggleAll('afk')">🛡 Adv AFK</button>
+          <button class="btn full" id="all-autorespawn-btn" onclick="toggleAutoRespawn()">↻ Auto-Respawn</button>
+          <button class="btn full" onclick="send('reconnect',{target:'*'})">↺ Reconnect All</button>
+          <button class="btn full danger" onclick="if(confirm('Disconnect all bots?'))disconnectAll()">✕ Disconnect All</button>
+        </div>
+        
+        <div class="section-title">Follow Mode</div>
+        <div class="chat-row">
+          <select id="follow-follower"><option value="*">All Bots</option></select>
+          <input id="follow-leader" type="text" placeholder="Leader username...">
+        </div>
+        <button class="btn full" id="follow-btn" onclick="toggleFollow()">▶ Follow Leader</button>
+        <div class="primary-hint">Bots form a chain: first bot follows you, each bot after follows the one ahead</div>
+
+        <div class="section-title">Chat</div>
+        <div class="chat-row">
+          <select id="chat-target"><option value="*">All</option><option value="__random__">🎲 Random</option></select>
+          <input id="chat-msg" placeholder="message…" onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="btn" onclick="sendChat()">Send</button>
+        </div>
+
+        <div class="section-title">Mass Chat Loop</div>
+        <div class="chat-row">
+          <select id="masschat-target"><option value="*">All</option><option value="__random__">🎲 Random</option></select>
+          <input id="masschat-msg" placeholder="message to loop...">
+        </div>
+        <div class="action-grid" style="margin-bottom: 12px;">
+          <button class="btn" id="masschat-btn" onclick="toggleMassChat()">▶ Mass Chat</button>
+          <button class="btn" id="antispam-btn" onclick="toggleAntiSpam()">✦ Anti-Spam</button>
+        </div>
+        
+        <div class="section-title">Slot Control</div>
+        <select id="slot-target" style="margin-bottom:4px;"><option value="*">All Bots</option></select>
+        <div class="slot-grid" id="slot-grid"></div>
+        
+        <div class="section-title">Movement</div>
+        <select id="move-target" style="margin-bottom:8px;"><option value="*">All Bots</option></select>
+        <div class="mini-input-row">
+          <span>Blocks:</span>
+          <input id="move-blocks" type="number" min="1" max="100" value="5" class="input-mini">
+          <span>block(s)</span>
+        </div>
+        <div class="dpad">
+          <div class="dpad-spacer"></div>
+          <button class="dpad-btn" onclick="sendMove('forward')">▲</button>
+          <div class="dpad-spacer"></div>
+          <button class="dpad-btn" onclick="sendMove('left')">◀</button>
+          <button class="dpad-btn dpad-back" onclick="sendMove('back')">▼</button>
+          <button class="dpad-btn" onclick="sendMove('right')">▶</button>
+        </div>
+        <div class="action-grid" style="margin-top:6px;">
+          <button class="btn" onclick="sendFly('up')">⤒ Fly Up</button>
+          <button class="btn" onclick="sendFly('down')">⤓ Fly Down</button>
+        </div>
+        
+        <div class="section-title">Primary Bot</div>
+        <div class="primary-display"><span class="dot-c"></span><span id="primary-label">none</span></div>
+        <div class="primary-hint">Click ★ in table to change · only primary logs shown</div>
+      </div>
+    </div>
+    
+    <div class="panel" id="log-panel">
+      <div class="panel-header">
+        <div class="panel-header-left"><span>Logs</span><span id="log-primary-tag" style="color:var(--cyan);font-size:10px;font-weight:400;letter-spacing:0;text-transform:none;"></span></div>
+        <button class="btn-xs" onclick="clearLogs()">Clear</button>
+      </div>
+      <div class="panel-body" id="log-scroll"><div id="log-body"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-page" id="proxies-tab">
+  <div class="proxy-layout">
+    <div class="proxy-main">
+      <div class="proxy-summary">
+        <div class="proxy-stat"><span class="proxy-stat-val" id="px-total">0</span><span class="proxy-stat-label">Total</span></div>
+        <div class="proxy-stat"><span class="proxy-stat-val green" id="px-active">0</span><span class="proxy-stat-label">Active</span></div>
+        <div class="proxy-stat"><span class="proxy-stat-val red" id="px-failed">0</span><span class="proxy-stat-label">Failed</span></div>
+        <div class="proxy-stat"><span class="proxy-stat-val cyan" id="px-bpp">1</span><span class="proxy-stat-label">Bots/Proxy</span></div>
+        <div class="proxy-stat" style="flex:1;align-items:center;"><span class="proxy-stat-val orange" id="px-capacity">0</span><span class="proxy-stat-label">Total Capacity</span></div>
+      </div>
+      <div class="proxy-table-wrap">
+        <table class="proxy-table"><thead><tr><th>Type</th><th>Host : Port</th><th>Auth</th><th>Status</th><th>Bots</th><th>Actions</th></tr></thead>
+        <tbody id="proxy-tbody"></tbody></table>
+      </div>
+    </div>
+    <div class="proxy-sidebar">
+      <div class="section-title" style="margin-top:0;">Distribution</div>
+      <div class="bpp-row"><span class="bpp-label">Bots per proxy</span><button class="btn-xs" onclick="changeBpp(-1)">−</button><span class="bpp-val" id="bpp-display">1</span><button class="btn-xs" onclick="changeBpp(+1)">+</button></div>
+      <div class="capacity-bar-wrap"><div class="capacity-bar-fill" id="capacity-bar" style="width:0%"></div></div>
+      <div class="capacity-hint" id="capacity-hint">0 proxies × 1 = 0 bot slots</div>
+      
+      <div class="section-title">Add Proxy</div>
+      <div class="form-group"><label class="form-label">Proxy string</label><input id="px-input" placeholder="socks5://user:pass@host:port"></div>
+      <div class="form-group"><label class="form-label">Type override</label><select id="px-type"><option value="">Auto-detect</option><option value="socks5">SOCKS5</option><option value="http">HTTP</option><option value="https">HTTPS</option></select></div>
+      <button class="btn full" onclick="addProxySingle()" style="margin-bottom:12px;">+ Add Proxy</button>
+      
+      <div class="section-title">Bulk Import</div>
+      <div class="form-group"><label class="form-label">Paste proxies (one per line)</label><textarea class="form-textarea" id="px-bulk" placeholder="socks5://host:port&#10;http://user:pass@host:port&#10;1.2.3.4:1080"></textarea></div>
+      <div class="form-group"><label class="form-label">Default type for bare host:port</label><select id="px-bulk-type"><option value="socks5">SOCKS5</option><option value="http">HTTP</option><option value="https">HTTPS</option></select></div>
+      <button class="btn full" onclick="bulkImport()" style="margin-bottom:12px;">⬇ Import</button>
+      
+      <div class="section-title">Tools</div>
+      <div class="action-grid">
+        <button class="btn" onclick="send('proxy:testAll',{})">⚡ Test All</button>
+        <button class="btn danger" onclick="if(confirm('Remove all proxies?'))send('proxy:clear',{})">✕ Clear All</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let ws;
+  let botData = [];
+  let proxyData = [];
+  let bppCurrent = 1;
+  let proxyStats = { totalProxies: 0, botsPerProxy: 1, totalBotsCapacity: 0 };
+  let isPrimaryLogActive = false;
+
+  document.getElementById('bot-tbody').innerHTML = '<tr><td colspan="9" class="empty">No bots — click "Load bots.txt" or add one manually</td></tr>';
+  document.getElementById('proxy-tbody').innerHTML = '<tr><td colspan="6" class="empty">No proxies — add one or bulk import →</td></tr>';
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.dataset.tab;
+      document.querySelectorAll('.tab-page').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabName + '-tab').classList.add('active');
+      btn.classList.add('active');
+    });
+  });
+
+  function connect() {
+    const wsHost = location.host || 'localhost:3000';
+    ws = new WebSocket(`ws://${wsHost}`);
+    ws.onopen = () => setStatus(true);
+    ws.onclose = () => { setStatus(false); setTimeout(connect, 2000); };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'state') handleState(msg);
+        if (msg.type === 'log') appendLog(msg);
+      } catch (err) { console.error("WS Parse Error:", err); }
+    };
+  }
+
+  function setStatus(ok) {
+    const el = document.getElementById('ws-status');
+    document.getElementById('ws-label').textContent = ok ? 'Connected' : 'Disconnected';
+    el.className = ok ? 'connected' : 'disconnected';
+  }
+
+  function send(cmd, args) {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd, args }));
+  }
+
+  function handleState(msg) {
+    botData = msg.bots || [];
+    proxyData = msg.proxies || [];
+    bppCurrent = msg.botsPerProxy || 1;
+    proxyStats = msg.proxyStats || { totalProxies: 0, botsPerProxy: 1, totalBotsCapacity: 0 };
+    
+    renderBots(msg);
+    renderProxies();
+    renderProxyStats();
+  }
+
+  function renderBots(msg) {
+    const online = botData.filter(b => b.status === 'online').length;
+    document.getElementById('s-total').textContent = botData.length;
+    document.getElementById('s-online').textContent = online;
+    document.getElementById('s-offline').textContent = botData.length - online;
+    document.getElementById('s-spin').textContent = botData.filter(b => b.spin).length;
+    document.getElementById('s-sneak').textContent = botData.filter(b => b.sneak).length;
+    document.getElementById('s-jump').textContent = botData.filter(b => b.jump).length;
+    document.getElementById('s-afk').textContent = botData.filter(b => b.afk).length;
+    document.getElementById('bot-count').textContent = botData.length;
+
+    const anySpinning = botData.some(b => b.spin);
+    const anySneaking = botData.some(b => b.sneak);
+    const anyJumping = botData.some(b => b.jump);
+    const anyPhysics = botData.some(b => b.physics);
+    const anyAfk = botData.some(b => b.afk);
+    
+    const sb = document.getElementById('all-spin-btn');
+    const nk = document.getElementById('all-sneak-btn');
+    const jb = document.getElementById('all-jump-btn');
+    const pb = document.getElementById('all-physics-btn');
+    const ab = document.getElementById('all-afk-btn');
+    const arb = document.getElementById('all-autorespawn-btn');
+    const mcBtn = document.getElementById('masschat-btn');
+    const asBtn = document.getElementById('antispam-btn');
+    const flBtn = document.getElementById('follow-btn');
+    
+    sb.classList.toggle('active', anySpinning); sb.textContent = anySpinning ? '■ Stop Spin' : '▶ Spin';
+    nk.classList.toggle('active', anySneaking); nk.textContent = anySneaking ? '⬆ Unsneak' : '⬇ Sneak';
+    jb.classList.toggle('active', anyJumping); jb.textContent = anyJumping ? '■ Stop Jump' : '↑ Jump';
+    pb.classList.toggle('active', !anyPhysics); pb.textContent = anyPhysics ? '⚙ Phy ON' : '⚙ Phy OFF';
+    ab.classList.toggle('active', anyAfk); ab.textContent = anyAfk ? '■ Stop AFK' : '🛡 Adv AFK';
+    
+    const isAutoRespawn = msg.autoRespawnEnabled || false;
+    arb.classList.toggle('active', isAutoRespawn); 
+    arb.textContent = isAutoRespawn ? '↻ Respawn ON' : '↻ Auto-Respawn';
+
+    const isMassChatOn = msg.massChatState?.enabled || false;
+    mcBtn.classList.toggle('active', isMassChatOn); 
+    mcBtn.textContent = isMassChatOn ? '■ Stop Mass' : '▶ Mass Chat';
+
+    const isAntiSpamOn = msg.antiSpamEnabled || false;
+    asBtn.classList.toggle('active', isAntiSpamOn); 
+    asBtn.textContent = isAntiSpamOn ? '■ Spam OFF' : '✦ Anti-Spam';
+
+    const isFollowing = msg.followState?.active || false;
+    flBtn.classList.toggle('active', isFollowing); 
+    flBtn.textContent = isFollowing ? '■ Stop Follow' : '▶ Follow Leader';
+
+    const pName = msg.primaryBot || 'none';
+    document.getElementById('primary-label').textContent = pName;
+    document.getElementById('log-primary-tag').textContent = pName !== 'none' ? `· ${pName}` : '';
+
+    ['chat-target', 'masschat-target', 'slot-target', 'move-target', 'follow-follower'].forEach(id => {
+      const sel = document.getElementById(id);
+      const prev = sel.value;
+      const base = (id === 'chat-target' || id === 'masschat-target') 
+        ? '<option value="*">All</option><option value="__random__">🎲 Random</option>' 
+        : '<option value="*">All Bots</option>';
+      
+      const currentOpts = Array.from(sel.options).map(o => o.value).join(',');
+      const newOpts = botData.map(b => b.name).join(',');
+      if (currentOpts !== base + newOpts) {
+        sel.innerHTML = base;
+        botData.forEach(b => {
+          const o = document.createElement('option');
+          o.value = b.name; o.textContent = b.name;
+          sel.appendChild(o);
+        });
+      }
+      if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    });
+
+    const primaryBot = botData.find(b => b.primary);
+    const activeSlot = primaryBot ? primaryBot.slot : null;
+    document.querySelectorAll('.slot-btn').forEach(btn => { 
+      btn.classList.toggle('active', parseInt(btn.dataset.slot) === activeSlot); 
+    });
+
+    const proxyLabel = {};
+    proxyData.forEach(p => { proxyLabel[p.id] = `${p.host}:${p.port}`; });
+
+    const tbody = document.getElementById('bot-tbody');
+    
+    if (botData.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">No bots — click "Load bots.txt" or add one manually</td></tr>';
+      return;
+    }
+
+    const existingRows = {};
+    Array.from(tbody.children).forEach(tr => {
+      if (tr.dataset.botId) existingRows[tr.dataset.botId] = tr;
+      else tr.remove();
+    });
+
+    botData.forEach(b => {
+      let tr = existingRows[b.name];
+      if (!tr) {
+        tr = document.createElement('tr');
+        tr.dataset.botId = b.name;
+        tbody.appendChild(tr);
+      }
+      
+      const pxLabel = b.proxyId && proxyLabel[b.proxyId]
+        ? `<span style="color:var(--cyan);font-family:var(--mono);font-size:10px;">${escHtml(proxyLabel[b.proxyId])}</span>`
+        : `<span style="color:var(--text-muted);font-size:10px;">—</span>`;
+        
+      const starHtml = b.primary 
+        ? '<span class="primary-star">★</span>' 
+        : `<span class="star-btn" onclick="send('primary',{target:'${escHtml(b.name)}'})">☆</span>`;
+
+      tr.innerHTML = `
+        <td class="name">${escHtml(b.name)}${starHtml}</td>
+        <td class="host">${escHtml(b.host)}:${b.port}</td>
+        <td><span class="badge badge-${b.status}">${b.status}</span></td>
+        <td><span class="dot ${b.spin ? 'dot-on' : 'dot-off'}"></span></td>
+        <td><span class="dot ${b.sneak ? 'dot-on' : 'dot-off'}"></span></td>
+        <td><span class="dot ${b.jump ? 'dot-on' : 'dot-off'}"></span></td>
+        <td><span class="dot ${b.physics ? 'dot-on' : 'dot-off'}"></span></td>
+        <td>${pxLabel}</td>
+        <td><div class="row-actions">
+          <button class="btn-xs ${b.spin ? 'active' : ''}" onclick="send('spin', {target:'${escHtml(b.name)}', stop:${b.spin}})">${b.spin ? '■' : '▶'} spin</button>
+          <button class="btn-xs ${b.sneak ? 'active' : ''}" onclick="send('sneak', {target:'${escHtml(b.name)}'})">${b.sneak ? '⬆' : '⬇'} sneak</button>
+          <button class="btn-xs ${b.jump ? 'active' : ''}" onclick="send('jump', {target:'${escHtml(b.name)}', stop:${b.jump}})">${b.jump ? '■' : '↑'} jump</button>
+          <button class="btn-xs ${b.physics ? 'active' : ''}" onclick="send('physics', {target:'${escHtml(b.name)}', state:${!b.physics}})">${b.physics ? '⚙ off' : '⚙ on'}</button>
+          <button class="btn-xs ${b.afk ? 'active' : ''}" onclick="send('afk', {target:'${escHtml(b.name)}', stop:${b.afk}})">${b.afk ? '🛡 off' : '🛡 afk'}</button>
+          <button class="btn-xs" onclick="send('reconnect', {target:'${escHtml(b.name)}'})">↺</button>
+          <button class="btn-xs danger" onclick="if(confirm('Remove ${escHtml(b.name)}?'))send('remove', {target:'${escHtml(b.name)}'})">✕</button>
+        </div></td>`;
+      
+      delete existingRows[b.name];
+    });
+
+    Object.values(existingRows).forEach(tr => tr.remove());
+  }
+
+  function renderProxies() {
+    const tbody = document.getElementById('proxy-tbody');
+    if (!proxyData.length) { 
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No proxies — add one or bulk import →</td></tr>'; 
+      return; 
+    }
+    
+    const botCount = {};
+    botData.forEach(b => { if (b.proxyId) botCount[b.proxyId] = (botCount[b.proxyId] || 0) + 1; });
+    
+    tbody.innerHTML = proxyData.map(p => {
+      const auth = p.username ? '🔑 auth' : '—';
+      const bots = botCount[p.id] || 0;
+      const cap = bppCurrent;
+      const pct = Math.min(100, Math.round((bots / cap) * 100));
+      const barCol = pct >= 100 ? 'var(--red)' : pct >= 60 ? 'var(--yellow)' : 'var(--green)';
+      return `<tr>
+        <td class="p-type">${p.type.toUpperCase()}</td>
+        <td class="p-host">${escHtml(p.host)}:${p.port}</td>
+        <td class="p-auth">${auth}</td>
+        <td><span class="badge badge-${p.status}">${p.status}</span></td>
+        <td class="p-bots"><span style="color:${barCol};">${bots}/${cap}</span></td>
+        <td><div class="row-actions">
+          <button class="btn-xs warn" onclick="send('proxy:test', {id:'${p.id}'})">⚡</button>
+          <button class="btn-xs" onclick="editProxy('${p.id}')">✎</button>
+          <button class="btn-xs danger" onclick="if(confirm('Remove this proxy?'))send('proxy:remove', {id:'${p.id}'})">✕</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderProxyStats() {
+    const total = proxyData.length;
+    const active = proxyData.filter(p => p.status === 'active').length;
+    const failed = proxyData.filter(p => p.status === 'failed').length;
+    const cap = total * bppCurrent;
+    const used = botData.filter(b => b.proxyId).length;
+    const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
+    
+    document.getElementById('px-total').textContent = total;
+    document.getElementById('px-active').textContent = active;
+    document.getElementById('px-failed').textContent = failed;
+    document.getElementById('px-bpp').textContent = bppCurrent;
+    document.getElementById('px-capacity').textContent = cap;
+    document.getElementById('bpp-display').textContent = bppCurrent;
+    document.getElementById('capacity-bar').style.width = pct + '%';
+    document.getElementById('capacity-hint').textContent = `${total} prox${total === 1 ? 'y' : 'ies'} × ${bppCurrent} = ${cap} slot${cap !== 1 ? 's' : ''} (${used} used)`;
+  }
+
+  function addProxySingle() { 
+    const raw = document.getElementById('px-input').value.trim(); 
+    const type = document.getElementById('px-type').value; 
+    if (!raw) return; 
+    send('proxy:add', { raw, type: type || undefined }); 
+    document.getElementById('px-input').value = ''; 
+  }
+
+  function bulkImport() { 
+    const text = document.getElementById('px-bulk').value; 
+    const type = document.getElementById('px-bulk-type').value; 
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean); 
+    if (!lines.length) return; 
+    send('proxy:bulkAdd', { lines, type }); 
+    document.getElementById('px-bulk').value = ''; 
+  }
+
+  function editProxy(id) { 
+    const p = proxyData.find(x => x.id === id); 
+    if (!p) return; 
+    const current = `${p.type}://${p.username ? p.username + (p.password ? ':' + p.password : '') + '@' : ''}${p.host}:${p.port}`; 
+    const newVal = prompt('Edit proxy (format: type://[user:pass@]host:port):', current); 
+    if (!newVal || !newVal.trim()) return; 
+    const typeOverride = prompt('Type override (socks5/http/https, leave blank for auto):', '') || undefined; 
+    send('proxy:edit', { id, raw: newVal.trim(), type: typeOverride }); 
+  }
+
+  function changeBpp(delta) { 
+    const next = Math.max(1, bppCurrent + delta); 
+    if (next === bppCurrent) return; 
+    send('proxy:setPerBot', { value: next }); 
+  }
+
+  function sendMove(direction) { 
+    const target = document.getElementById('move-target').value; 
+    const blocks = parseInt(document.getElementById('move-blocks').value) || 5; 
+    send('move', { target, direction, blocks }); 
+  }
+
+  function sendFly(direction) {
+    const target = document.getElementById('move-target').value;
+    const blocks = parseInt(document.getElementById('move-blocks').value) || 5;
+    send('fly', { target, direction, blocks });
+  }
+
+  function toggleAll(action) { 
+    const map = { spin: botData.some(b=>b.spin), sneak: botData.some(b=>b.sneak), jump: botData.some(b=>b.jump), physics: botData.some(b=>b.physics), afk: botData.some(b=>b.afk) }; 
+    const anyOn = map[action]; 
+    if (action === 'spin') send('spin', { target:'*', stop: anyOn }); 
+    if (action === 'sneak') send('sneak', { target:'*' }); 
+    if (action === 'jump') send('jump', { target:'*', stop: anyOn }); 
+    if (action === 'physics') send('physics', { target:'*', state: !anyOn }); 
+    if (action === 'afk') send('afk', { target:'*', stop: anyOn }); 
+  }
+
+  function toggleAutoRespawn() {
+    const isOn = document.getElementById('all-autorespawn-btn').classList.contains('active');
+    send('autorespawn', { enabled: !isOn });
+  }
+
+  function toggleMassChat() {
+    const btn = document.getElementById('masschat-btn');
+    const isOn = btn.classList.contains('active');
+    const target = document.getElementById('masschat-target').value;
+    const message = document.getElementById('masschat-msg').value.trim();
+    
+    if (!isOn && !message) {
+      alert('Please enter a message to loop.');
+      return;
+    }
+    send('masschat', { enabled: !isOn, target, message });
+  }
+
+  function toggleAntiSpam() {
+    const btn = document.getElementById('antispam-btn');
+    const isOn = btn.classList.contains('active');
+    send('antispam', { enabled: !isOn });
+  }
+
+  function toggleFollow() {
+    const btn = document.getElementById('follow-btn');
+    const isOn = btn.classList.contains('active');
+    const follower = document.getElementById('follow-follower').value;
+    const leader = document.getElementById('follow-leader').value.trim();
+    
+    if (!isOn && !leader) {
+      alert('Please enter a leader username to follow.');
+      return;
+    }
+    send('follow', { enabled: !isOn, follower, leader });
+  }
+
+  function disconnectAll() { botData.forEach(b => send('remove', { target: b.name })); }
+
+  function sendChat() { 
+    const msg = document.getElementById('chat-msg').value.trim(); 
+    if (!msg) return; 
+    let target = document.getElementById('chat-target').value; 
+    if (target === '__random__') { 
+      const online = botData.filter(b => b.status === 'online'); 
+      if (!online.length) return; 
+      target = online[Math.floor(Math.random() * online.length)].name; 
+    } 
+    send('chat', { target, message: msg }); 
+    document.getElementById('chat-msg').value = ''; 
+  }
+
+  function loadBotsWithConfig() {
+    const host = document.getElementById('cfg-host').value.trim();
+    const port = document.getElementById('cfg-port').value.trim();
+    const version = document.getElementById('cfg-version').value;
+    send('load', { host, port, version });
+  }
+
+  const MAX_LOGS = 300;
+  function appendLog({ level, text, time }) { 
+    const body = document.getElementById('log-body'); 
+    const scroll = document.getElementById('log-scroll'); 
+    const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 40; 
+    
+    const line = document.createElement('div'); 
+    line.className = 'log-line'; 
+    const tagMap = { info:'INFO', success:'OK', warn:'WARN', error:'ERR', chat:'CHAT', bot:'MSG' }; 
+    line.innerHTML = `<span class="log-time">${time}</span><span class="log-tag tag-${level}">${tagMap[level]||level}</span><span class="log-text">${escHtml(text)}</span>`; 
+    
+    body.appendChild(line); 
+    while (body.children.length > MAX_LOGS) body.removeChild(body.firstChild); 
+    if (atBottom) scroll.scrollTop = scroll.scrollHeight; 
+  }
+
+  function clearLogs() { document.getElementById('log-body').innerHTML = ''; }
+
+  function escHtml(s) { 
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); 
+  }
+
+  (function() { 
+    const grid = document.getElementById('slot-grid'); 
+    for (let i = 0; i < 9; i++) { 
+      const btn = document.createElement('button'); 
+      btn.className = 'slot-btn'; 
+      btn.dataset.slot = i; 
+      btn.textContent = i + 1; 
+      btn.title = `Slot ${i+1}`; 
+      btn.onclick = () => send('slot', { target: document.getElementById('slot-target').value, slot: i }); 
+      grid.appendChild(btn); 
+    } 
+  })();
+
+  (function() {
+    const layout = document.getElementById('main-layout');
+    const rCol = document.getElementById('resizer-col');
+    const rRow = document.getElementById('resizer-row');
+    let isDragging = false;
+
+    rCol.addEventListener('mousedown', (e) => {
+      e.preventDefault(); isDragging = true; rCol.classList.add('dragging');
+      const rect = layout.getBoundingClientRect();
+      const onMove = (ev) => {
+        if (!isDragging) return;
+        const sidebarW = Math.max(200, Math.min(600, rect.right - ev.clientX));
+        document.documentElement.style.setProperty('--sidebar-w', sidebarW + 'px');
+      };
+      const onUp = () => { isDragging = false; rCol.classList.remove('dragging'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    });
+
+    rRow.addEventListener('mousedown', (e) => {
+      e.preventDefault(); isDragging = true; rRow.classList.add('dragging');
+      const rect = layout.getBoundingClientRect();
+      const onMove = (ev) => {
+        if (!isDragging) return;
+        const logH = Math.max(80, Math.min(520, rect.bottom - ev.clientY));
+        document.documentElement.style.setProperty('--log-h', logH + 'px');
+      };
+      const onUp = () => { isDragging = false; rRow.classList.remove('dragging'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    });
+  })();
+
+  (function() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const g1 = document.querySelector('.ambient-glow.g1');
+    const g2 = document.querySelector('.ambient-glow.g2');
+    if (!g1 || !g2) return;
+    let mx = 0.5, my = 0.5, cx = 0.5, cy = 0.5, rafId = null, isTabVisible = true;
+    document.addEventListener('mousemove', (e) => { mx = e.clientX / window.innerWidth; my = e.clientY / window.innerHeight; });
+    document.addEventListener('visibilitychange', () => { isTabVisible = !document.hidden; if (isTabVisible && !rafId) tick(); else if (!isTabVisible && rafId) { cancelAnimationFrame(rafId); rafId = null; } });
+    function tick() {
+      if (!isTabVisible) return;
+      cx += (mx - cx) * 0.03; cy += (my - cy) * 0.03;
+      g1.style.transform = `translate(${(cx - 0.5) * 30}px, ${(cy - 0.5) * 30}px)`;
+      g2.style.transform = `translate(${-(cx - 0.5) * 20}px, ${-(cy - 0.5) * 20}px)`;
+      rafId = requestAnimationFrame(tick);
+    }
+    tick();
+  })();
+
+  connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+#gif{font-size:11px;font-weight:800;letter-spacing:.5px;font-family:'Space Grotesk',sans-serif}
+.gif-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;padding:2px}
+.gif-cell{position:relative;display:block;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:var(--card2);padding:0}
+.gif-cell img{width:100%;height:100%;object-fit:cover;display:block}
+.gif-cell:hover img{opacity:.86}
+.gif-star{position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:rgba(0,0,0,.55);color:#fff;font-size:13px;opacity:.7;line-height:1}
+.gif-star:hover{opacity:1;background:rgba(0,0,0,.75)}
+.gif-star.on{opacity:1;color:#f5c451}
+.gif-more{display:block;width:100%;margin:9px 0 2px;height:36px;border-radius:10px;background:var(--card2);color:var(--text);font-weight:600;font-size:13px}
+.gif-more:hover{background:var(--panel)}
+.gif-attrib{min-height:14px}
