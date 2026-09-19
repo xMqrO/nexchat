@@ -32,9 +32,41 @@
 .tkt-msg.mine .tkt-bubble{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:var(--accent-ink)}
 .tkt-bubble b{display:block;font-size:11.5px;margin-bottom:3px;opacity:.85}
 .tkt-bubble a{color:inherit;text-decoration:underline}
-.tkt-composer{display:flex;gap:10px;align-items:flex-end;padding:12px 14px;border-top:1px solid var(--line);flex-shrink:0;background:var(--card)}
+.tkt-composer{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-top:1px solid var(--line);flex-shrink:0;background:var(--card)}
+.tkt-composer-row{display:flex;gap:10px;align-items:flex-end}
 .tkt-composer textarea{flex:1;resize:none;border:1px solid var(--line);background:var(--card2);border-radius:12px;padding:10px 12px;color:var(--text);font-size:13.5px;min-height:40px;max-height:140px;line-height:1.4;outline:none;scrollbar-width:none;-ms-overflow-style:none}
 .tkt-composer textarea::-webkit-scrollbar{width:0;height:0;display:none}
 .tkt-composer textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
 .tkt-composer.disabled{opacity:.6}
+.tkt-replybar{display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:7px 10px;font-size:12px;min-height:20px}
+.tkt-replybar.hidden{display:none}
+.tkt-replybar .tkt-rp-icon{color:var(--accent);flex:0 0 auto}
+.tkt-replybar .tkt-rp-text{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tkt-replybar .tkt-rp-text b{font-weight:700}
+.tkt-replybar .tkt-rp-prev{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.tkt-replybar .tkt-rp-x{flex:0 0 auto;width:20px;height:20px;border-radius:6px;background:var(--soft);color:var(--muted);font-size:13px;line-height:1}
+.tkt-replybar .tkt-rp-x:hover{background:var(--soft-hover);color:var(--text)}
+.tkt-menu{position:fixed;z-index:90;min-width:172px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:grid;gap:2px}
+.tkt-menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:9px 11px;border-radius:9px;background:transparent;border:0;color:var(--text);font-size:13px;cursor:pointer}
+.tkt-menu button:hover{background:var(--card2)}
+.tkt-menu button.danger{color:var(--danger)}
+.tkt-menu button.danger:hover{background:rgba(255,113,136,.12)}
+.tkt-reply{display:flex;align-items:baseline;gap:6px;background:var(--card);border-left:3px solid var(--accent);border-radius:9px;padding:5px 9px;margin-bottom:6px;font-size:11.5px;cursor:pointer;line-height:1.4}
+.tkt-reply:hover{filter:brightness(1.05)}
+.tkt-reply .tkt-rp-icon{color:var(--accent);flex:0 0 auto}
+.tkt-reply b{flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+.tkt-reply .tkt-rp-prev{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.tkt-fw{display:block;font-size:9.5px;font-weight:600;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+.tkt-msg{position:relative;transition:box-shadow .3s}
+.tkt-msg.tkt-flash{box-shadow:0 0 0 3px var(--accent-glow);border-radius:12px}
+.tkt-confirm-box .tkt-modal-title{font:700 15px 'Space Grotesk',sans-serif}
+.tkt-edit-input{width:100%;resize:vertical;border:1px solid var(--line);background:var(--card2);border-radius:12px;padding:10px 12px;color:var(--text);font-size:13.5px;line-height:1.4;outline:none;margin-top:10px;box-sizing:border-box}
+.tkt-edit-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
+.tkt-fwd-label{color:var(--muted);font-size:13px;line-height:1.5;margin:8px 0 0}
+.tkt-fwd-label b{display:inline;font-size:inherit;color:var(--text)}
+.tkt-fwd-list{display:grid;gap:6px;max-height:280px;overflow:auto;margin-top:12px}
+.tkt-fwd-row{display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:8px 10px}
+.tkt-fwd-row strong{font-size:13px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkt-fwd-row small{color:var(--muted);font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkt-fwd-row button{flex:0 0 auto}
 @media(max-width:640px){.support-root{padding:0}.tkt-shell{width:100vw;height:100vh;height:100dvh;border-radius:0;border:0}}

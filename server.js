@@ -844,10 +844,10 @@ const ticketWelcomeEmbed = (ticket, channelName) => ({
   timestamp: ticket.createdAt,
   footer: { text: `Ticket #${ticket.number} · use the button below to close it` }
 });
-const ticketUserEmbed = (ticket, content, at) => ({
+const ticketUserEmbed = (ticket, content, at, reply) => ({
   color: DISCORD_EMBED_COLOR,
   author: { name: `@${String(ticket.username || 'user').slice(0, 40)} · NexChat` },
-  description: content,
+  description: reply ? `> @${String(reply.author || 'unknown').slice(0, 40)}: ${String(reply.preview || '').slice(0, 150)}\n\n${content}` : content,
   timestamp: at
 });
 const ticketClosedEmbed = (ticket, closer) => ({
@@ -946,13 +946,52 @@ app.post('/api/support/tickets/:id/messages', requireUser, async (req, res) => {
   if (t.status !== 'open') return res.status(409).json({ error: 'This ticket is already closed.' });
   const content = clean(req.body.content, 2000);
   if (!content) return res.status(400).json({ error: 'Cannot send an empty message.' });
+  const replyTo = clean(req.body.replyTo, 60);
+  const replied = replyTo ? (t.messages.find((m) => m.id === replyTo) || null) : null;
+  const reply = replied ? { id: replied.id, author: replied.author || (replied.kind === 'staff' ? 'Support Team' : t.name || t.username), preview: String(replied.content || '').slice(0, 150) } : null;
+  const at = new Date().toISOString();
+  let discordRes = null;
   try {
-    await discordApi('POST', `/channels/${t.channelId}/messages`, { embeds: [ticketUserEmbed(t, content, new Date().toISOString())] });
+    discordRes = await discordApi('POST', `/channels/${t.channelId}/messages`, { embeds: [ticketUserEmbed(t, content, at, reply)] });
   } catch (e) { return res.status(502).json({ error: 'Could not reach the Discord ticket: ' + (e.message || 'unknown error') }); }
-  const message = { id: id('tm'), kind: 'user', author: t.name || t.username, content, createdAt: new Date().toISOString() };
+  const message = { id: id('tm'), kind: 'user', author: t.name || t.username, content, createdAt: at, discordId: (discordRes && discordRes.id) || null };
+  if (reply) message.reply = reply;
   t.messages.push(message);
   await writeSupportTickets(s);
   res.json({ message });
+});
+app.put('/api/support/tickets/:id/messages/:messageId', requireUser, async (req, res) => {
+  const s = await readSupportTickets();
+  const t = s.tickets.find((x) => x.id === clean(req.params.id, 40)) || null;
+  if (!t || (t.userId !== req.uid && !isOwner(req.user))) return res.status(404).json({ error: 'Ticket not found.' });
+  const m = t.messages.find((x) => x.id === clean(req.params.messageId, 60)) || null;
+  if (!m) return res.status(404).json({ error: 'Message not found.' });
+  if (m.kind !== 'user') return res.status(400).json({ error: 'Only your own messages can be edited.' });
+  const content = clean(req.body.content, 2000);
+  if (!content) return res.status(400).json({ error: 'Cannot send an empty message.' });
+  m.content = content;
+  m.edited = true;
+  m.editedAt = new Date().toISOString();
+  if (SUPPORT_ENABLED && m.discordId) {
+    try { await discordApi('PATCH', `/channels/${t.channelId}/messages/${m.discordId}`, { embeds: [ticketUserEmbed(t, content, m.createdAt, m.reply || null)] }); } catch { /* best-effort */ }
+  }
+  await writeSupportTickets(s);
+  res.json({ message: m });
+});
+app.del('/api/support/tickets/:id/messages/:messageId', requireUser, async (req, res) => {
+  const s = await readSupportTickets();
+  const t = s.tickets.find((x) => x.id === clean(req.params.id, 40)) || null;
+  if (!t || (t.userId !== req.uid && !isOwner(req.user))) return res.status(404).json({ error: 'Ticket not found.' });
+  const idx = t.messages.findIndex((x) => x.id === clean(req.params.messageId, 60));
+  if (idx === -1) return res.status(404).json({ error: 'Message not found.' });
+  const m = t.messages[idx];
+  if (m.kind !== 'user') return res.status(400).json({ error: 'Only your own messages can be deleted.' });
+  if (SUPPORT_ENABLED && m.discordId) {
+    try { await discordApi('DELETE', `/channels/${t.channelId}/messages/${m.discordId}`); } catch { /* best-effort */ }
+  }
+  t.messages.splice(idx, 1);
+  await writeSupportTickets(s);
+  res.json({ ok: true, id: m.id });
 });
 app.post('/api/support/tickets/:id/close', requireUser, async (req, res) => {
   const s = await readSupportTickets();
