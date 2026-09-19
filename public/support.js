@@ -19,6 +19,10 @@
     if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
   }
   function close() {
+    if (root) {
+      var c = root.querySelector('.tkt-confirm');
+      if (c) { c.remove(); return; }
+    }
     if (timer) { clearInterval(timer); timer = null; }
     document.removeEventListener('keydown', onKey, true);
     if (root) { root.remove(); root = null; }
@@ -119,9 +123,16 @@
   }
   function closeTicket() {
     if (!ticket || ticket.status !== 'open') return;
-    modal('Close support ticket', '<p class="muted">Close ticket <b>#' + ticket.number + '</b>? The Discord channel will be renamed to <b>closed ticket</b> and you will not be able to reply anymore.</p><div class="modal-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button class="primary" id="tkt-close-yes">Close ticket</button></div>');
+    var overlay = el('div', 'tkt-confirm');
+    var whom = escapeHTML(String(ticket.username || ticket.name || 'user'));
+    overlay.innerHTML =
+      '<div class="tkt-confirm-box"><b>Close support ticket</b>' +
+      '<p>Close ticket <b>#' + ticket.number + '</b>? The Discord channel will be renamed to <b>closed-' + whom + '</b> and you will not be able to reply anymore.</p>' +
+      '<div class="tkt-confirm-actions"><button type="button" class="tkt-btn ghost" id="tkt-close-no">Cancel</button><button type="button" class="tkt-btn danger" id="tkt-close-yes">Close ticket</button></div></div>';
+    root.appendChild(overlay);
+    document.getElementById('tkt-close-no').onclick = function () { overlay.remove(); };
     document.getElementById('tkt-close-yes').onclick = function () {
-      closeModal();
+      overlay.remove();
       api('/api/support/tickets/' + encodeURIComponent(ticket.id) + '/close', { method: 'POST' }).then(function (d) {
         ticket = d.ticket;
         (d.ticket.messages || []).forEach(function (m) { if (m && !msgIds.has(m.id)) { msgIds.add(m.id); messages.push(m); } });
@@ -157,7 +168,7 @@
       '<div class="tkt-shell">' +
         '<header class="tkt-head">' +
           '<div class="tkt-head-info"><b id="tkt-title">Support ticket</b><small id="tkt-status"></small></div>' +
-          '<button type="button" class="tkt-btn ghost" id="tkt-close-btn">Close ticket</button>' +
+          '<button type="button" class="tkt-btn danger" id="tkt-close-btn">Close ticket</button>' +
           '<button type="button" class="tkt-close" id="tkt-x" aria-label="Close">×</button>' +
         '</header>' +
         '<div class="tkt-body" id="tkt-body"></div>' +

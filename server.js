@@ -926,7 +926,7 @@ app.post('/api/support/tickets/:id/close', requireUser, async (req, res) => {
   if (t.status === 'closed') return res.json({ ticket: t });
   if (SUPPORT_ENABLED) {
     try {
-      await discordApi('PATCH', `/channels/${t.channelId}`, { name: `closed-ticket-${t.number}`, locked: true });
+      await discordApi('PATCH', `/channels/${t.channelId}`, { name: `closed-${cleanSupportName(t.username || t.name || 'user')}`, locked: true });
     } catch { /* rename is best-effort */ }
   }
   t.status = 'closed';
