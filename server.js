@@ -30,6 +30,10 @@ const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID || '';
 const DISCORD_SUPPORT_CATEGORY_ID = process.env.DISCORD_SUPPORT_CATEGORY_ID || '1549762135955865670';
 const DISCORD_SUPPORT_ROLE_ID = process.env.DISCORD_SUPPORT_ROLE_ID || '1549753769091276850';
 const DISCORD_SUPPORT_INVITE = process.env.DISCORD_SUPPORT_INVITE || 'https://discord.gg/UwUqRtKYGQ';
+const DISCORD_BOT_PUBLIC_KEY = process.env.DISCORD_BOT_PUBLIC_KEY || '';
+const DISCORD_CLOSE_CUSTOM_ID = 'nexchat_close_ticket';
+const DISCORD_EMBED_COLOR = 0x8b7cf6;
+const DISCORD_EMBED_CLOSED = 0x2ecc71;
 const SUPPORT_ENABLED = !!(DISCORD_BOT_TOKEN && DISCORD_GUILD_ID && DISCORD_SUPPORT_CATEGORY_ID && DISCORD_SUPPORT_ROLE_ID);
 
 storage.ensure();
@@ -214,6 +218,7 @@ const conversationFor = (a, b) => conversations.find((c) => Array.isArray(c?.mem
 
 const app = express();
 app.disable('x-powered-by');
+app.use('/api/discord/interactions', express.raw({ type: 'application/json', limit: '3mb' }));
 app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -827,6 +832,31 @@ const discordBotId = () => {
   if (!discordBotIdPromise) discordBotIdPromise = discordApi('GET', '/users/@me').then((u) => (u && u.id) || null).catch(() => null);
   return discordBotIdPromise;
 };
+const fmtDiscordCloser = (u) => String((u && (u.global_name || u.username)) || 'Discord staff').slice(0, 40);
+const ticketWelcomeEmbed = (ticket, channelName) => ({
+  color: DISCORD_EMBED_COLOR,
+  title: `Support ticket #${ticket.number}`,
+  description: 'A NexChat user opened a support ticket. Staff replies in this channel appear instantly on the user\'s website ticket.',
+  fields: [
+    { name: 'User', value: `@${String(ticket.username || 'user').slice(0, 60)}`, inline: true },
+    { name: 'Website', value: 'NexChat', inline: true }
+  ],
+  timestamp: ticket.createdAt,
+  footer: { text: `Ticket #${ticket.number} · use the button below to close it` }
+});
+const ticketUserEmbed = (ticket, content, at) => ({
+  color: DISCORD_EMBED_COLOR,
+  author: { name: `@${String(ticket.username || 'user').slice(0, 40)} · NexChat` },
+  description: content,
+  timestamp: at
+});
+const ticketClosedEmbed = (ticket, closer) => ({
+  color: DISCORD_EMBED_CLOSED,
+  title: `Support ticket #${ticket.number} · Closed`,
+  description: `This ticket was closed by @${closer} and the channel is now locked.`,
+  timestamp: ticket.closedAt || new Date().toISOString(),
+  footer: { text: 'NexChat · support' }
+});
 const snowGt = (a, b) => { const x = String(a || ''), y = String(b || ''); if (!x) return false; if (!y) return true; if (x.length !== y.length) return x.length > y.length; return x > y; };
 const cleanSupportName = (n) => String(n || 'user').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'user';
 async function readSupportTickets() {
@@ -867,10 +897,15 @@ app.post('/api/support/tickets', requireUser, async (req, res) => {
   } catch (e) { return res.status(502).json({ error: 'Could not create the ticket in Discord: ' + (e.message || 'unknown error') }); }
   if (!channel || !channel.id) return res.status(502).json({ error: 'Discord did not return a ticket channel.' });
   const createdAt = new Date().toISOString();
-  const ticket = { id: id('tkt'), number, channelId: channel.id, userId: req.uid, username: req.user.username || req.user.name, name: req.user.name || req.user.username, status: 'open', createdAt, closedAt: null, lastDiscordId: null, messages: [] };
+  const ticket = { id: id('tkt'), number, channelId: channel.id, userId: req.uid, username: req.user.username || req.user.name, name: req.user.name || req.user.username, status: 'open', createdAt, closedAt: null, welcomeMessageId: null, lastDiscordId: null, messages: [] };
+  let welcomeRes = null;
   try {
-    await discordApi('POST', `/channels/${channel.id}/messages`, { content: `🎫 **Support ticket #${number}** opened for **@${String(req.user.username || req.user.name).slice(0, 40)}** on NexChat.\nStaff replies in this channel appear instantly on the user's website ticket.` });
+    welcomeRes = await discordApi('POST', `/channels/${channel.id}/messages`, {
+      embeds: [ticketWelcomeEmbed(ticket, channel.name || '')],
+      components: [{ type: 1, components: [{ type: 2, style: 4, label: 'Close ticket', emoji: { name: '🔒' }, custom_id: DISCORD_CLOSE_CUSTOM_ID }] }]
+    });
   } catch { /* welcome message is best-effort */ }
+  ticket.welcomeMessageId = (welcomeRes && welcomeRes.id) || null;
   ticket.messages.push({ id: id('tm'), kind: 'system', author: 'NexChat', content: `Ticket #${number} opened by @${String(req.user.username || req.user.name).slice(0, 40)}. Staff replies land here automatically.`, createdAt });
   s.counter = number;
   s.tickets.push(ticket);
@@ -912,7 +947,7 @@ app.post('/api/support/tickets/:id/messages', requireUser, async (req, res) => {
   const content = clean(req.body.content, 2000);
   if (!content) return res.status(400).json({ error: 'Cannot send an empty message.' });
   try {
-    await discordApi('POST', `/channels/${t.channelId}/messages`, { content: `**@${String(t.username || 'user').slice(0, 40)}**: ${content}` });
+    await discordApi('POST', `/channels/${t.channelId}/messages`, { embeds: [ticketUserEmbed(t, content, new Date().toISOString())] });
   } catch (e) { return res.status(502).json({ error: 'Could not reach the Discord ticket: ' + (e.message || 'unknown error') }); }
   const message = { id: id('tm'), kind: 'user', author: t.name || t.username, content, createdAt: new Date().toISOString() };
   t.messages.push(message);
@@ -924,16 +959,70 @@ app.post('/api/support/tickets/:id/close', requireUser, async (req, res) => {
   const t = s.tickets.find((x) => x.id === clean(req.params.id, 40)) || null;
   if (!t || (t.userId !== req.uid && !isOwner(req.user))) return res.status(404).json({ error: 'Ticket not found.' });
   if (t.status === 'closed') return res.json({ ticket: t });
+  t.status = 'closed';
+  t.closedAt = new Date().toISOString();
+  t.messages.push({ id: id('tm'), kind: 'system', author: 'NexChat', content: `Ticket #${t.number} closed by @${String(req.user.username || req.user.name).slice(0, 40)}.`, createdAt: t.closedAt });
   if (SUPPORT_ENABLED) {
     try {
       await discordApi('PATCH', `/channels/${t.channelId}`, { name: `closed-${cleanSupportName(t.username || t.name || 'user')}`, locked: true });
     } catch { /* rename is best-effort */ }
+    if (t.welcomeMessageId) {
+      try { await discordApi('PATCH', `/channels/${t.channelId}/messages/${t.welcomeMessageId}`, { embeds: [ticketClosedEmbed(t, String(req.user.username || req.user.name).slice(0, 40) || 'NexChat staff')], components: [] }); } catch { /* best-effort */ }
+    }
   }
-  t.status = 'closed';
-  t.closedAt = new Date().toISOString();
-  t.messages.push({ id: id('tm'), kind: 'system', author: 'NexChat', content: `Ticket #${t.number} closed by @${String(req.user.username || req.user.name).slice(0, 40)}.`, createdAt: t.closedAt });
   await writeSupportTickets(s);
   res.json({ ticket: t });
+});
+function verifyDiscordInteraction(req, raw) {
+  if (!DISCORD_BOT_PUBLIC_KEY) return true;
+  try {
+    const sig = Buffer.from(String(req.headers['x-signature-ed25519'] || ''), 'hex');
+    const ts = Buffer.from(String(req.headers['x-signature-timestamp'] || ''), 'utf8');
+    if (!sig.length || !ts.length || !Buffer.isBuffer(raw)) return false;
+    const der = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(DISCORD_BOT_PUBLIC_KEY, 'hex')]);
+    const pem = `-----BEGIN PUBLIC KEY-----\n${der.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+    const v = crypto.createVerify('ed25519');
+    v.update(Buffer.concat([ts, raw]));
+    v.end();
+    return v.verify(pem, sig);
+  } catch { return false; }
+}
+async function closeTicketFromInteraction(it) {
+  const channelId = String((it.channel && it.channel.id) || (it.message && it.message.channel_id) || '');
+  const closer = fmtDiscordCloser(it.member && it.member.user) || 'Discord staff';
+  if (!channelId) return;
+  const s = await readSupportTickets();
+  const t = s.tickets.find((x) => String(x.channelId || '') === channelId) || null;
+  if (!t) {
+    try { await discordApi('PATCH', `/webhooks/${it.application_id}/${it.token}/messages/@original`, { embeds: [{ color: DISCORD_EMBED_CLOSED, title: 'Ticket closed', description: 'This ticket could not be found or was already removed.' }], components: [] }); } catch { /* best-effort */ }
+    return;
+  }
+  if (t.status === 'open') {
+    t.status = 'closed';
+    t.closedAt = new Date().toISOString();
+    t.messages.push({ id: id('tm'), kind: 'system', author: 'NexChat', content: `Ticket #${t.number} closed from Discord by @${closer}.`, createdAt: t.closedAt });
+  }
+  try {
+    await discordApi('PATCH', `/channels/${t.channelId}`, { name: `closed-${cleanSupportName(t.username || t.name || 'user')}`, locked: true });
+  } catch { /* best-effort */ }
+  try {
+    await discordApi('PATCH', `/webhooks/${it.application_id}/${it.token}/messages/@original`, { embeds: [ticketClosedEmbed(t, closer)], components: [] });
+  } catch { /* best-effort */ }
+  await writeSupportTickets(s);
+}
+app.post('/api/discord/interactions', async (req, res) => {
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ''));
+  if (!verifyDiscordInteraction(req, raw)) return res.status(401).json({ error: 'Invalid request signature' });
+  let it = null;
+  try { it = JSON.parse(raw.toString('utf8')); } catch { return res.status(400).json({ error: 'Invalid interaction payload' }); }
+  if (!it) return res.status(400).json({ error: 'Invalid interaction payload' });
+  if (it.type === 1) return res.json({ type: 1 });
+  if (it.type === 3 && it.data && it.data.custom_id === DISCORD_CLOSE_CUSTOM_ID) {
+    res.json({ type: 6 });
+    try { await closeTicketFromInteraction(it); } catch (e) { console.error('ticket close interaction failed', e); }
+    return;
+  }
+  res.json({ type: 4, data: { content: 'Unsupported interaction.', flags: 64 } });
 });
 app.post('/api/presence', requireUser, async (req, res) => { await markOnline(req.uid); await trackConnection(req, req.uid); res.json({ ok: true }); });
 app.post('/api/typing', requireUser, async (req, res) => {
